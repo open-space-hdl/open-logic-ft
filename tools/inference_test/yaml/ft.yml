@@ -133,6 +133,8 @@ entities:
     configurations:
       - name: "w32"
         generics: { Width_g: 32 }
+        in_reduce: { In_Data: 32, In_ErrInj_BitFlip: 39 }
+        out_reduce: { Out_Data: 32 }
 
   # ============================================================
   # olo_ft_axi_master_simple
@@ -186,6 +188,8 @@ entities:
       # BRAM-backed delay with the registered decode output
       - name: "w32-d256-ecc1"
         generics: { Width_g: 32, Delay_g: 256, EccPipeline_g: 1 }
+        in_reduce: { In_Data: 32, In_ErrInj_BitFlip: 39 }
+        out_reduce: { Out_Data: 32 }
 
   # ============================================================
   # olo_ft_delay_cfg
@@ -194,6 +198,8 @@ entities:
     configurations:
       - name: "w32-max256-ecc1"
         generics: { Width_g: 32, MaxDelay_g: 256, EccPipeline_g: 1 }
+        in_reduce: { In_Data: 32, In_ErrInj_BitFlip: 39 }
+        out_reduce: { Out_Data: 32 }
 
   # ============================================================
   # olo_ft_cc_pulse
