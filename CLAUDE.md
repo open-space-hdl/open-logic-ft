@@ -23,7 +23,8 @@ comment banners and coding style. Additional references:
 - Whenever you suspect I instructed you wrong or you see a CLEARLY better approach, raise it immediately.
 
 Every new entity needs: production code, a self-checking VUnit testbench, documentation in `doc/<area>` and a link
-from [doc/EntityList.md](./doc/EntityList.md).
+from [doc/EntityList.md](./doc/EntityList.md). It must also be integrated into the generated files and CI checks, see
+[Integrating a New Entity](#integrating-a-new-entity).
 
 ## VHDL Code (`*.vhd`)
 
@@ -34,6 +35,12 @@ from [doc/EntityList.md](./doc/EntityList.md).
 - Prefer shorthand conversions from Open Logic packages over nested `numeric_std` conversions.
   - Example: use `fromUslv()` instead of `to_integer(unsigned(...))` for conversions from `std_logic_vector`.
   - Example: use `toUslv()` instead of `std_logic_vector(to_unsigned(...))` for conversions to `std_logic_vector`.
+- Entities with non-trivial state use the two-process pattern: all registers in one `TwoProcess_r` record, signals
+  `r` / `r_next`, a combinational process starting with `v := r;` and ending with `r_next <= v;`, and a sequential
+  process doing `r <= r_next` plus the reset override. FSMs are a field of that record, not separate processes.
+  Mirror an existing entity such as `olo_base_fifo_packet`.
+- Reuse existing entities from [doc/EntityList.md](./doc/EntityList.md) instead of writing custom RTL. In particular,
+  never hand-write a synchronizer: use the `olo_base_cc_*` clock crossings or `olo_base_fifo_async`.
 
 ## Fixed-Point Code (`olo_fix`)
 
@@ -89,8 +96,8 @@ python3 run.py "*olo_fix_sin*" # filter by test-name pattern
 python3 run.py <testcase> --gui  # open waveforms (GTKWave for GHDL/NVC)
 ```
 
-New testbenches must be registered in `sim/test_configs/olo_<area>.py`. New entities also need an entry in
-`tools/inference_test/yaml/<area>.yml`.
+New testbenches must be registered in `sim/test_configs/olo_<area>.py`. Testbenches use VUnit and the VUnit
+verification components (`vunit_lib.vc_context`) only; do not introduce other verification frameworks such as UVVM.
 
 Code coverage (Questasim only):
 
@@ -120,6 +127,13 @@ Single file:
 vsg -c lint/config/vsg_config.yml -f <path-to-file>
 # VUnit verification components (test/tb) use an additional overlay:
 vsg -c lint/config/vsg_config.yml lint/config/vsg_config_overlay_vc.yml -f <path-to-file>
+```
+
+Do not run `vsg --fix` with `vsg_config.yml` alone: it lowercases identifiers. For safe automatic fixes use the
+whitelist:
+
+```shell
+vsg -c lint/config/vsg_config.yml --fix --fix_only lint/config/fix_only_config.yml -f <path-to-file>
 ```
 
 VSCode tasks _Run VSG Lint_, _Run VSG Lint - All Files_ and _Run VSG Lint - VC_ are preconfigured in
@@ -158,12 +172,39 @@ configuration; results are also written to `tools/inference_test/results/`.
   before interpreting unexpected numbers.
 - When optimizing, compare the numbers before and after the change and report both.
 
+## Integrating a New Entity
+
+- **Synthesis config:** every entity in `src/<area>/vhdl` must be configured in
+  `tools/inference_test/yaml/<area>.yml` (one representative configuration, use `in_reduce` / `out_reduce` for wide
+  ports) or excluded. CI fails otherwise (`InferenceTest.py --check-coverage`). Do not add exact-name excludes; name
+  private entities so the existing wildcards cover them: `olo_private_*` for secondary entities inside another
+  entity's file, `olo_<area>_private_*` for standalone private files.
+- **Compile order:** regenerate `compile_order.txt` with `python3 run.py --compile_list` (from `sim`). Never edit it
+  by hand.
+- **FuseSoC:** regenerate `src/<area>/olo_<area>_dev.core` with
+  `python3 UpdateCoreFiles.py --version <current> --cl-fix-version <current>` (from `tools/fusesoc`). The script
+  rewrites all cores; keep only the change to the dev core of your area and revert the rest.
+- **Release files:** do not modify `tools/fusesoc/stable/*.core` or `Changelog.md`. They are updated by the release
+  commit only.
+
+A new **area** additionally has to be registered in:
+
+| File | What to add |
+| ---- | ----------- |
+| `tools/fusesoc/UpdateCoreFiles.py` | `DESCRIPTIONS` and `DEPENDENCIES` entries |
+| `sim/run.py` | import and area loop for `sim/test_configs/olo_<area>.py` |
+| `tools/<tool>/import_sources.tcl` | area list of each vendor tool |
+| `.github/workflows/hdl_check.yml`, `.github/workflows/synthesis.yml` | inference-test step for `<area>.yml` |
+| `tools/inference_test/yaml/<area>.yml` | new file with `files` and `exclude_entities` (private wildcards) |
+| [Readme.md](./Readme.md), [doc/EntityList.md](./doc/EntityList.md), this file | area list |
+
 ## Before Declaring a Task Complete
 
 1. Simulations pass (`sim/run.py`).
 2. VSG lint clean for production code and testbenches.
 3. Python unit tests pass with 100% statement coverage (for `olo_fix` changes).
 4. Documentation added/updated and linked from [doc/EntityList.md](./doc/EntityList.md).
+5. Generated files and the synthesis config updated (see [Integrating a New Entity](#integrating-a-new-entity)).
 
 ## Style Notes
 
