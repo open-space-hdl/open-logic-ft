@@ -224,6 +224,31 @@ entities:
     configurations:
       - name: "s2"
         generics: { SyncStages_g: 2 }
+
+  # ============================================================
+  # olo_ft_cc_simple
+  # ============================================================
+  - entity_name: "olo_ft_cc_simple"
+    configurations:
+      - name: "w16-s2"
+        generics: { Width_g: 16, SyncStages_g: 2 }
+
+  # ============================================================
+  # olo_ft_cc_status
+  # ============================================================
+  - entity_name: "olo_ft_cc_status"
+    configurations:
+      - name: "w16-s2"
+        generics: { Width_g: 16, SyncStages_g: 2 }
+
+  # ============================================================
+  # olo_ft_cc_handshake
+  # ============================================================
+  - entity_name: "olo_ft_cc_handshake"
+    configurations:
+      - name: "w16-s2"
+        generics: { Width_g: 16, SyncStages_g: 2 }
+
   # ============================================================
   # olo_ft_ecc_monitor
   # ============================================================

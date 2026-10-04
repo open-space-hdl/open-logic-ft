@@ -222,6 +222,24 @@ def add_configs(olo_tb):
     for Stages in [2, 3, 4]:
         named_config(tb, {'SyncStages_g': Stages})
 
+    ### olo_ft_private_cc_toggle, olo_ft_cc_simple, olo_ft_cc_status, olo_ft_cc_handshake ###
+    # Same clock-ratio and sync-stage coverage as the olo_base_cc_* counterparts
+    cc_tbs = ['olo_ft_private_cc_toggle_tb', 'olo_ft_cc_simple_tb', 'olo_ft_cc_status_tb',
+              'olo_ft_cc_handshake_tb']
+    for tb_name in cc_tbs:
+        tb = olo_tb.test_bench(tb_name)
+        for N, D in [(1, 1), (1, 3), (3, 1), (1, 20), (20, 1), (19, 20), (20, 19)]:
+            named_config(tb, {'ClockRatio_N_g': N, 'ClockRatio_D_g': D})
+        for Stages in [2, 4]:
+            named_config(tb, {'SyncStages_g': Stages})
+
+    ### olo_ft_cc_handshake ###
+    tb = olo_tb.test_bench('olo_ft_cc_handshake_tb')
+    for ReadyRst in [0, 1]:
+        named_config(tb, {'ReadyRstState_g': ReadyRst})
+    for RandomStall in [True, False]:
+        named_config(tb, {'RandomStall_g': RandomStall})
+
     ### olo_ft_ecc_monitor ###
     tb = olo_tb.test_bench('olo_ft_ecc_monitor_tb')
     # Channel sweep: single channel, default, non-power-of-two (exercises the out-of-range read)

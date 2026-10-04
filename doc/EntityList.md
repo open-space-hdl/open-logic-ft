@@ -344,6 +344,9 @@ triplicated with a majority voter to mitigate single-event upsets. They follow t
 | [olo_ft_cc_reset](./ft/olo_ft_cc_reset.md)      | TMR-hardened synchronization of resets between two clock domains (bi-directional) |
 | [olo_ft_cc_bits](./ft/olo_ft_cc_bits.md)        | TMR-hardened transfer of a group of individual single bit signals from one clock domain to another clock domain |
 | [olo_ft_cc_pulse](./ft/olo_ft_cc_pulse.md)      | TMR-hardened transfer of single-cycle pulses from one clock domain to another clock domain |
+| [olo_ft_cc_simple](./ft/olo_ft_cc_simple.md)    | TMR-hardened transfer of selectively valid data from one clock domain to another clock domain (data/valid pair) |
+| [olo_ft_cc_status](./ft/olo_ft_cc_status.md)    | TMR-hardened transfer of status and configuration information from one clock domain to another clock domain. The update rate is relatively low but consistency is guaranteed |
+| [olo_ft_cc_handshake](./ft/olo_ft_cc_handshake.md) | TMR-hardened transfer of data from one clock domain to another clock domain using the standard _Valid/Ready_ handshaking.<br />For high data rates, [olo_ft_fifo_async](./ft/olo_ft_fifo_async.md) is preferred over this entity. |
 
 ### RAM Implementations (olo_ft_ram_\<...\>)
 
@@ -399,3 +402,4 @@ intended for direct end-user instantiation.
 | Entity                                                           | Description                                                  |
 | ---------------------------------------------------------------- | ------------------------------------------------------------ |
 | [olo_ft_private_scrubber](./ft/olo_ft_private_scrubber.md)       | Opportunistic memory-scrub engine (FSM and user/scrub arbitration) shared by the two scrub RAM wrappers |
+| [olo_ft_private_cc_toggle](./ft/olo_ft_private_cc_toggle.md)     | TMR-hardened toggle-based pulse crossing without reset crossing, shared by the olo_ft_cc_simple/status/handshake clock crossings |
