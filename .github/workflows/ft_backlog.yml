@@ -1,0 +1,114 @@
+name: FT-Backlog-Check
+run-name: ${{ github.actor }} triggered FT Backlog Check
+
+# Fork-only workflow of open-space-hdl/open-logic-ft: checks every push to the fault-tolerant
+# backlog branch. It is never part of a pull request to open-logic/open-logic.
+
+# Set the permissions for the workflow
+permissions:
+  contents: read
+
+#Set Triggers
+on:
+  push:
+    branches:
+      - fault-tolerant
+  workflow_dispatch:
+
+#Jobs
+jobs:
+  simulation:
+    name: simulation-ghdl-${{ matrix.area }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        area: [base, axi, intf, fix, ft]
+    steps:
+      #General Setup
+      - name: Setup node
+        uses: actions/setup-node@v5
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          submodules: true
+      #Setup environment
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
+        with:
+          os: ${{ runner.os }}
+          ghdl: true
+      #Run Simulation: all configurations of the ft area, the minimal set of the other areas
+      - name: Run Simulation
+        shell: bash
+        run: |
+          cd ./sim
+          if [ "${{ matrix.area }}" = "ft" ]; then MINIMAL=""; else MINIMAL="--minimal"; fi
+          python3 run.py --ghdl $MINIMAL "olo_tb.olo_${{ matrix.area }}_*" --xunit-xml sim_report_ghdl_${{ matrix.area }}.xml -p 16
+      - name: Upload sim results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulation-ghdl-${{ matrix.area }}-artifacts
+          path: sim/sim_report_ghdl_${{ matrix.area }}.xml
+
+  linting:
+    runs-on: ubuntu-latest
+    steps:
+      #General Setup
+      - name: Setup node
+        uses: actions/setup-node@v5
+      - name: Checkout repo
+        uses: actions/checkout@v5
+      #Setup environment
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
+        with:
+          os: ${{ runner.os }}
+      #Run Linting
+      - name: Run Linting
+        shell: bash
+        run: |
+          cd ./lint/script
+          python3 script.py
+      #Upload Linting results
+      - name: Upload Linting results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linting-artifacts
+          path: |
+            lint/report/vsg_normal_vhdl.xml
+            lint/report/vsg_vc_vhdl.xml
+
+  markdown-lint:
+    runs-on: ubuntu-latest
+    steps:
+      #General Setup
+      - name: Checkout repo
+        uses: actions/checkout@v5
+      #Run markdownlint
+      - name: Run markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v17
+        with:
+          globs: '**/*.md'
+          config: '.markdownlint.json'
+
+  check-synthesis-config:
+    runs-on: ubuntu-latest
+    steps:
+      #General Setup
+      - name: Setup node
+        uses: actions/setup-node@v5
+      - name: Checkout repo
+        uses: actions/checkout@v5
+      #Setup environment
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
+        with:
+          os: ${{ runner.os }}
+      #Every ft entity must be configured or excluded in the inference test
+      - name: ft
+        run: |
+          cd ./tools/inference_test
+          python3 -u ./InferenceTest.py --yml=./yaml/ft.yml --no-tables --check-coverage --dry-run
