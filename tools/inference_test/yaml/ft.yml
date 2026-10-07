@@ -210,6 +210,22 @@ entities:
         generics: { NumPulses_g: 8, SyncStages_g: 3 }
 
   # ============================================================
+  # olo_ft_reset_gen
+  # ============================================================
+  - entity_name: "olo_ft_reset_gen"
+    configurations:
+      - name: "c64-sync"
+        generics: { RstPulseCycles_g: 64, AsyncResetOutput_g: false }
+
+  # ============================================================
+  # olo_ft_sync
+  # ============================================================
+  - entity_name: "olo_ft_sync"
+    configurations:
+      - name: "w8-s2"
+        generics: { Width_g: 8, SyncStages_g: 2 }
+
+  # ============================================================
   # olo_ft_cc_bits
   # ============================================================
   - entity_name: "olo_ft_cc_bits"

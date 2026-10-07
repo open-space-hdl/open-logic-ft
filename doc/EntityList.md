@@ -38,6 +38,7 @@ Note that components are split into categories.
     - [Packages (olo\_ft\_pkg\_\<...\>)](#packages-olo_ft_pkg_)
     - [ECC Codec (olo\_ft\_ecc\_\<...\>)](#ecc-codec-olo_ft_ecc_)
     - [Clock Crossings (olo\_ft\_cc\_\<...\>)](#clock-crossings-olo_ft_cc_)
+    - [Resets and Synchronizers (ft)](#resets-and-synchronizers-ft)
     - [RAM Implementations (olo\_ft\_ram\_\<...\>)](#ram-implementations-olo_ft_ram_)
     - [FIFO Implementations (olo\_ft\_fifo\_\<...\>)](#fifo-implementations-olo_ft_fifo_)
     - [Timing Related Entities (ft)](#timing-related-entities-ft)
@@ -347,6 +348,16 @@ triplicated with a majority voter to mitigate single-event upsets. They follow t
 | [olo_ft_cc_simple](./ft/olo_ft_cc_simple.md)    | TMR-hardened transfer of selectively valid data from one clock domain to another clock domain (data/valid pair) |
 | [olo_ft_cc_status](./ft/olo_ft_cc_status.md)    | TMR-hardened transfer of status and configuration information from one clock domain to another clock domain. The update rate is relatively low but consistency is guaranteed |
 | [olo_ft_cc_handshake](./ft/olo_ft_cc_handshake.md) | TMR-hardened transfer of data from one clock domain to another clock domain using the standard _Valid/Ready_ handshaking.<br />For high data rates, [olo_ft_fifo_async](./ft/olo_ft_fifo_async.md) is preferred over this entity. |
+
+### Resets and Synchronizers (ft)
+
+TMR-hardened counterparts of [olo_base_reset_gen](./base/olo_base_reset_gen.md) and
+[olo_intf_sync](./intf/olo_intf_sync.md).
+
+| Entity                                          | Description                                                  |
+| ----------------------------------------------- | ------------------------------------------------------------ |
+| [olo_ft_reset_gen](./ft/olo_ft_reset_gen.md)    | TMR-hardened reset generator - Generates reset pulses of specified duration after configuration and upon request |
+| [olo_ft_sync](./ft/olo_ft_sync.md)              | TMR-hardened synchronizer for asynchronous input signals     |
 
 ### RAM Implementations (olo_ft_ram_\<...\>)
 
