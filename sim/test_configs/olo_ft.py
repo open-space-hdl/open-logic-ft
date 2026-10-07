@@ -199,10 +199,8 @@ def add_configs(olo_tb):
 
     ### olo_ft_cc_pulse ###
     tb = olo_tb.test_bench('olo_ft_cc_pulse_tb')
-    # Clock ratios within the valid range for the Fig. 14 pulse handshake.
-    # Design constraint: input pulse must return to zero before the feedback round-trip
-    # completes (approximately f_out < SyncStages_g * f_in).
-    for N, D in [(1, 1), (3, 2), (2, 3), (1, 5), (2, 5)]:
+    # Toggle-based crossing: same clock-ratio coverage as olo_base_cc_pulse
+    for N, D in [(1, 1), (1, 3), (3, 1), (1, 20), (20, 1), (19, 20), (20, 19)]:
         named_config(tb, {'ClockRatio_N_g': N, 'ClockRatio_D_g': D})
     for Stages in [3, 4]:
         named_config(tb, {'SyncStages_g': Stages})
@@ -221,6 +219,24 @@ def add_configs(olo_tb):
         named_config(tb, {'ClockRatio_N_g': N, 'ClockRatio_D_g': D})
     for Stages in [2, 3, 4]:
         named_config(tb, {'SyncStages_g': Stages})
+
+    ### olo_ft_reset_gen ###
+    # Same configurations as olo_base_reset_gen
+    tb = olo_tb.test_bench('olo_ft_reset_gen_tb')
+    for Cycles in [3, 5, 50, 64]:
+        named_config(tb, {'RstPulseCycles_g': Cycles})
+    for Cycles in [3, 5]:
+        for Polarity in [0, 1]:
+            for AsyncOutput in [True, False]:
+                named_config(tb, {'RstPulseCycles_g': Cycles, 'RstInPolarity_g': Polarity,
+                                  'AsyncResetOutput_g': AsyncOutput})
+
+    ### olo_ft_sync ###
+    # Same configurations as olo_intf_sync
+    tb = olo_tb.test_bench('olo_ft_sync_tb')
+    for SyncStages in [2, 4]:
+        for RstLevel in [0, 1]:
+            named_config(tb, {'SyncStages_g': SyncStages, 'RstLevel_g': RstLevel})
 
     ### olo_ft_private_cc_toggle, olo_ft_cc_simple, olo_ft_cc_status, olo_ft_cc_handshake ###
     # Same clock-ratio and sync-stage coverage as the olo_base_cc_* counterparts
