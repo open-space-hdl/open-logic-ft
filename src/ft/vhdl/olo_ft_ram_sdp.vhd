@@ -117,7 +117,8 @@ begin
             ErrInj_Valid   => ErrInj_Valid
         );
 
-    -- Internal RAM with codeword-wide word.
+    -- Internal RAM with codeword-wide word. Rd_Valid pulses RamRdLatency_g cycles after Rd_Ena,
+    -- aligned with Rd_Codeword arriving at the read port -- feeds the decoder's In_Valid.
     i_ram : entity work.olo_base_ram_sdp
         generic map (
             Depth_g       => Depth_g,
@@ -141,7 +142,8 @@ begin
             Rd_Valid => Ram_Rd_Valid
         );
 
-    -- Decode read data (with optional pipeline).
+    -- Decode read data (with optional pipeline). The decoder absorbs the EccPipeline_g portion of
+    -- the read-valid path natively.
     i_dec : entity work.olo_ft_ecc_decode
         generic map (
             Width_g    => Width_g,

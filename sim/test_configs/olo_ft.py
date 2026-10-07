@@ -144,3 +144,96 @@ def add_configs(olo_tb):
     # DROP_ONLY is rejected by the entity (In_Last would be stored in RAM outside the ECC codeword)
     for FeatureSet in ['FULL', 'DROP_SKIP_ONLY']:
         named_config(tb, {'FeatureSet_g': FeatureSet})
+
+    ### olo_ft_fifo_async ###
+    tb = olo_tb.test_bench('olo_ft_fifo_async_tb')
+    for Width in Widths:
+        named_config(tb, {'Width_g': Width})
+    for Opt in ['SPEED', 'LATENCY']:
+        named_config(tb, {'Optimization_g': Opt})
+
+    ### olo_ft_axi_master_simple ###
+    tb = olo_tb.test_bench('olo_ft_axi_master_simple_tb')
+    for Width in [16, 32]:
+        named_config(tb, {'AxiDataWidth_g': Width})
+    named_config(tb, {'ImplRead_g': False})
+    named_config(tb, {'ImplWrite_g': False})
+
+    ### olo_ft_axi_master_full ###
+    tb = olo_tb.test_bench('olo_ft_axi_master_full_tb')
+    for Width in [16, 32]:
+        named_config(tb, {'AxiDataWidth_g': Width})
+    named_config(tb, {'ImplRead_g': False})
+    named_config(tb, {'ImplWrite_g': False})
+
+    ### olo_ft_delay ###
+    tb = olo_tb.test_bench('olo_ft_delay_tb')
+    for Width in Widths:
+        named_config(tb, {'Width_g': Width})
+    # Delay sweep: wire-through, output-register-only, SRL taps and (via the default
+    # BramThreshold_g of 128) the BRAM implementation
+    for Delay in [0, 1, 2, 3, 130]:
+        named_config(tb, {'Delay_g': Delay})
+    # Explicit resource selection
+    named_config(tb, {'Delay_g': 8, 'Resource_g': 'BRAM'})
+    named_config(tb, {'Delay_g': 8, 'Resource_g': 'SRL'})
+    named_config(tb, {'RstState_g': False})
+    # Registered decode output (sample-compensated)
+    named_config(tb, {'EccPipeline_g': 1})
+    named_config(tb, {'EccPipeline_g': 1, 'Delay_g': 1})
+    named_config(tb, {'EccPipeline_g': 1, 'Delay_g': 130})
+
+    ### olo_ft_delay_cfg ###
+    tb = olo_tb.test_bench('olo_ft_delay_cfg_tb')
+    for Width in Widths:
+        named_config(tb, {'Width_g': Width})
+    # SRL-only (MaxDelay_g <= 3) and large-RAM configurations
+    for MaxDelay in [3, 256]:
+        named_config(tb, {'MaxDelay_g': MaxDelay})
+    named_config(tb, {'SupportZero_g': True})
+    named_config(tb, {'RstState_g': False})
+    # Registered decode output (dynamic sample compensation)
+    named_config(tb, {'EccPipeline_g': 1})
+    named_config(tb, {'EccPipeline_g': 1, 'SupportZero_g': True})
+    named_config(tb, {'EccPipeline_g': 1, 'MaxDelay_g': 256})
+
+    ### olo_ft_cc_pulse ###
+    tb = olo_tb.test_bench('olo_ft_cc_pulse_tb')
+    # Clock ratios within the valid range for the Fig. 14 pulse handshake.
+    # Design constraint: input pulse must return to zero before the feedback round-trip
+    # completes (approximately f_out < SyncStages_g * f_in).
+    for N, D in [(1, 1), (3, 2), (2, 3), (1, 5), (2, 5)]:
+        named_config(tb, {'ClockRatio_N_g': N, 'ClockRatio_D_g': D})
+    for Stages in [3, 4]:
+        named_config(tb, {'SyncStages_g': Stages})
+
+    ### olo_ft_cc_bits ###
+    tb = olo_tb.test_bench('olo_ft_cc_bits_tb')
+    # Same clock-ratio coverage as olo_base_cc_bits
+    for N, D in [(1, 1), (3, 2), (2, 3), (5, 1), (1, 5)]:
+        named_config(tb, {'ClockRatio_N_g': N, 'ClockRatio_D_g': D})
+    for Stages in [2, 3, 4]:
+        named_config(tb, {'SyncStages_g': Stages})
+
+    ### olo_ft_cc_reset ###
+    tb = olo_tb.test_bench('olo_ft_cc_reset_tb')
+    for N, D in [(1, 1), (3, 2), (2, 3), (5, 1), (1, 5)]:
+        named_config(tb, {'ClockRatio_N_g': N, 'ClockRatio_D_g': D})
+    for Stages in [2, 3, 4]:
+        named_config(tb, {'SyncStages_g': Stages})
+
+    ### olo_ft_ecc_monitor ###
+    tb = olo_tb.test_bench('olo_ft_ecc_monitor_tb')
+    # Channel sweep: single channel, default, non-power-of-two (exercises the out-of-range read)
+    for Channels in [1, 4, 5, 33]:
+        named_config(tb, {'Channels_g': Channels})
+    # Narrow counter: full saturation sweep runs in bounded time
+    named_config(tb, {'CounterWidth_g': 4})
+    named_config(tb, {'CounterWidth_g': 1})
+
+    ### olo_ft_ecc_monitor_axi ###
+    tb = olo_tb.test_bench('olo_ft_ecc_monitor_axi_tb')
+    # 33 channels exercise the second sticky word; narrow counter the AXI saturation case
+    for Channels in [8, 33]:
+        named_config(tb, {'Channels_g': Channels})
+    named_config(tb, {'CounterWidth_g': 4})

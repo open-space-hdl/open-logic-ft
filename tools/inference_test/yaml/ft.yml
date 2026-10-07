@@ -123,3 +123,119 @@ entities:
         generics: { Width_g: 32 }
         in_reduce: { In_Data: 32, In_ErrInj_BitFlip: 39 }
         out_reduce: { Out_Data: 32 }
+
+  # ============================================================
+  # olo_ft_fifo_async
+  # ============================================================
+  - entity_name: "olo_ft_fifo_async"
+    fixed_generics:
+      Depth_g: 256
+    configurations:
+      - name: "w32"
+        generics: { Width_g: 32 }
+
+  # ============================================================
+  # olo_ft_axi_master_simple
+  # ============================================================
+  - entity_name: "olo_ft_axi_master_simple"
+    configurations:
+      - name: "addr32-data32"
+        generics: { AxiAddrWidth_g: 32, AxiDataWidth_g: 32, AxiMaxBeats_g: 16 }
+        in_reduce:
+          CmdWr_Addr: 32
+          CmdRd_Addr: 32
+          CmdWr_Size: 24
+          CmdRd_Size: 24
+          Wr_Data: 32
+          M_Axi_RData: 32
+          Wr_ErrInj_BitFlip: 43
+          Rd_ErrInj_BitFlip: 40
+        out_reduce:
+          Rd_Data: 32
+          M_Axi_AwAddr: 32
+          M_Axi_ArAddr: 32
+          M_Axi_WData: 32
+
+  # ============================================================
+  # olo_ft_axi_master_full
+  # ============================================================
+  - entity_name: "olo_ft_axi_master_full"
+    configurations:
+      - name: "addr32-data32"
+        generics: { AxiAddrWidth_g: 32, AxiDataWidth_g: 32, UserDataWidth_g: 16, UserTransactionSizeBits_g: 24, AxiMaxBeats_g: 16 }
+        in_reduce:
+          CmdWr_Addr: 32
+          CmdRd_Addr: 32
+          CmdWr_Size: 24
+          CmdRd_Size: 24
+          Wr_Data: 16
+          M_Axi_RData: 32
+          Wr_ErrInj_BitFlip: 22
+          Rd_ErrInj_BitFlip: 23
+        out_reduce:
+          Rd_Data: 16
+          M_Axi_AwAddr: 32
+          M_Axi_ArAddr: 32
+          M_Axi_WData: 32
+
+  # ============================================================
+  # olo_ft_delay
+  # ============================================================
+  - entity_name: "olo_ft_delay"
+    configurations:
+      # BRAM-backed delay with the registered decode output
+      - name: "w32-d256-ecc1"
+        generics: { Width_g: 32, Delay_g: 256, EccPipeline_g: 1 }
+
+  # ============================================================
+  # olo_ft_delay_cfg
+  # ============================================================
+  - entity_name: "olo_ft_delay_cfg"
+    configurations:
+      - name: "w32-max256-ecc1"
+        generics: { Width_g: 32, MaxDelay_g: 256, EccPipeline_g: 1 }
+
+  # ============================================================
+  # olo_ft_cc_pulse
+  # ============================================================
+  - entity_name: "olo_ft_cc_pulse"
+    configurations:
+      - name: "n8-s3"
+        generics: { NumPulses_g: 8, SyncStages_g: 3 }
+
+  # ============================================================
+  # olo_ft_cc_bits
+  # ============================================================
+  - entity_name: "olo_ft_cc_bits"
+    configurations:
+      - name: "w8-s2"
+        generics: { Width_g: 8, SyncStages_g: 2 }
+
+  # ============================================================
+  # olo_ft_cc_reset
+  # ============================================================
+  - entity_name: "olo_ft_cc_reset"
+    configurations:
+      - name: "s2"
+        generics: { SyncStages_g: 2 }
+  # ============================================================
+  # olo_ft_ecc_monitor
+  # ============================================================
+  - entity_name: "olo_ft_ecc_monitor"
+    configurations:
+      - name: "ch8-w16"
+        generics: { Channels_g: 8, CounterWidth_g: 16 }
+
+  # ============================================================
+  # olo_ft_ecc_monitor_axi
+  # ============================================================
+  - entity_name: "olo_ft_ecc_monitor_axi"
+    configurations:
+      - name: "ch8-w16-addr12"
+        generics: { Channels_g: 8, CounterWidth_g: 16, AxiAddrWidth_g: 12 }
+        in_reduce:
+          S_AxiLite_ArAddr: 12
+          S_AxiLite_AwAddr: 12
+          S_AxiLite_WData: 32
+        out_reduce:
+          S_AxiLite_RData: 32

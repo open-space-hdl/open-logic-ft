@@ -37,8 +37,12 @@ Note that components are split into categories.
   - [ft](#ft)
     - [Packages (olo\_ft\_pkg\_\<...\>)](#packages-olo_ft_pkg_)
     - [ECC Codec (olo\_ft\_ecc\_\<...\>)](#ecc-codec-olo_ft_ecc_)
+    - [Clock Crossings (olo\_ft\_cc\_\<...\>)](#clock-crossings-olo_ft_cc_)
     - [RAM Implementations (olo\_ft\_ram\_\<...\>)](#ram-implementations-olo_ft_ram_)
     - [FIFO Implementations (olo\_ft\_fifo\_\<...\>)](#fifo-implementations-olo_ft_fifo_)
+    - [Timing Related Entities (ft)](#timing-related-entities-ft)
+    - [AXI Interfaces (olo\_ft\_axi\_\<...\>)](#axi-interfaces-olo_ft_axi_)
+    - [Monitoring (olo\_ft\_ecc\_monitor\<...\>)](#monitoring-olo_ft_ecc_monitor)
     - [Private Entities](#private-entities)
 
 ## base
@@ -317,9 +321,10 @@ common constraints) are described once in
 
 ### Packages (olo_ft_pkg_\<...\>)
 
-| Package                                       | Description                                                  |
-| --------------------------------------------- | ------------------------------------------------------------ |
-| [olo_ft_pkg_ecc](./ft/olo_ft_pkg_ecc.md)      | SECDED Hamming code functions for ECC-protected memories. |
+| Package                                       | Description                                                    |
+| --------------------------------------------- | -------------------------------------------------------------- |
+| [olo_ft_pkg_ecc](./ft/olo_ft_pkg_ecc.md)      | SECDED Hamming code functions for ECC-protected memories.      |
+| [olo_ft_pkg_attribute](./ft/olo_ft_pkg_attribute.md) | Synthesis attributes specific to fault-tolerant (TMR) designs. **For internal use within Open Logic only** |
 
 ### ECC Codec (olo_ft_ecc_\<...\>)
 
@@ -327,6 +332,18 @@ common constraints) are described once in
 | ----------------------------------------------- | ------------------------------------------------------------ |
 | [olo_ft_ecc_encode](./ft/olo_ft_ecc_encode.md)  | SECDED encoder with AXI4-Stream handshake, optional pipeline, and codeword-wide bit-flip injection |
 | [olo_ft_ecc_decode](./ft/olo_ft_ecc_decode.md)  | SECDED decoder with AXI4-Stream handshake and optional distributed pipeline |
+
+### Clock Crossings (olo_ft_cc_\<...\>)
+
+TMR-hardened counterparts of the [olo_base_cc_\<...\>](#clock-crossings-olo_base_cc_) clock crossings. Each chain is
+triplicated with a majority voter to mitigate single-event upsets. They follow the same
+[clock crossing principles](./base/clock_crossing_principles.md) as their base counterparts.
+
+| Entity                                          | Description                                                  |
+| ----------------------------------------------- | ------------------------------------------------------------ |
+| [olo_ft_cc_reset](./ft/olo_ft_cc_reset.md)      | TMR-hardened synchronization of resets between two clock domains (bi-directional) |
+| [olo_ft_cc_bits](./ft/olo_ft_cc_bits.md)        | TMR-hardened transfer of a group of individual single bit signals from one clock domain to another clock domain |
+| [olo_ft_cc_pulse](./ft/olo_ft_cc_pulse.md)      | TMR-hardened transfer of single-cycle pulses from one clock domain to another clock domain |
 
 ### RAM Implementations (olo_ft_ram_\<...\>)
 
@@ -345,13 +362,34 @@ base counterpart.
 ### FIFO Implementations (olo_ft_fifo_\<...\>)
 
 The ECC-protected counterparts of the [olo_base_fifo_\<...\>](#fifo-implementations-olo_base_fifo_)
-entities. An asynchronous variant will be introduced as well once fault-tolerant clock-crossing
-primitives have been introduced to the ft area.
+entities.
 
 | Entity                                               | Description                                                  |
 | ---------------------------------------------------- | ------------------------------------------------------------ |
 | [olo_ft_fifo_sync](./ft/olo_ft_fifo_sync.md)         | ECC-protected synchronous FIFO (single clock)               |
+| [olo_ft_fifo_async](./ft/olo_ft_fifo_async.md)       | ECC-protected asynchronous FIFO (separate write and read clocks) |
 | [olo_ft_fifo_packet](./ft/olo_ft_fifo_packet.md)     | ECC-protected packet FIFO (store and forward) with the ability to drop packets on the write side and skip or repeat packets on the read side |
+
+### Timing Related Entities (ft)
+
+| Entity                                             | Description                                                  |
+| -------------------------------------------------- | ------------------------------------------------------------ |
+| [olo_ft_delay](./ft/olo_ft_delay.md)               | ECC-protected fixed duration delay (fixed number of data-beats) |
+| [olo_ft_delay_cfg](./ft/olo_ft_delay_cfg.md)       | ECC-protected configurable duration delay (runtime configurable number of data-beats) |
+
+### AXI Interfaces (olo_ft_axi_\<...\>)
+
+| Entity                                                             | Description                                                  |
+| ------------------------------------------------------------------ | ------------------------------------------------------------ |
+| [olo_ft_axi_master_simple](./ft/olo_ft_axi_master_simple.md)       | ECC-protected AXI4 master (simple interface, aligned transfers) |
+| [olo_ft_axi_master_full](./ft/olo_ft_axi_master_full.md)           | ECC-protected AXI4 master with unaligned-access support and width conversion |
+
+### Monitoring (olo_ft_ecc_monitor\<...\>)
+
+| Entity                                                             | Description                                                  |
+| ------------------------------------------------------------------ | ------------------------------------------------------------ |
+| [olo_ft_ecc_monitor](./ft/olo_ft_ecc_monitor.md)                   | EDAC monitor: per-channel saturating SEC/DED counters with sticky DED flags and a read-and-clear port |
+| [olo_ft_ecc_monitor_axi](./ft/olo_ft_ecc_monitor_axi.md)           | EDAC monitor with AXI4-Lite register interface and interrupt output |
 
 ### Private Entities
 

@@ -32,7 +32,7 @@ For background on the SECDED scheme, the codeword layout, error injection semant
 apply across the _ft_ area, see [Open Logic Fault-Tolerance Principles](./olo_ft_principles.md).
 
 > [!WARNING]
-> True dual port RAM is _NOT_ supported when compiling with Yosys for Gologne Chip FPGAs.
+> True dual port RAM is _NOT_ supported when compiling with Yosys for Cologne Chip FPGAs.
 > Please use _olo_base_ram_sdp_ instead.
 
 ## Generics
