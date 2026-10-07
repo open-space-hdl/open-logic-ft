@@ -116,3 +116,12 @@ Block-RAM into one big FIFO.
 
 Regarding constraints, refer to  [clock-crossing principles](clock_crossing_principles.md). The FIFO is also
 auto-constraints capable.
+
+### Architecture
+
+The control logic (pointers, level/flag detection, optimization pipeline) lives in a private entity
+`olo_private_fifo_async_core`, which exposes the storage RAM and the Gray-pointer/reset clock-crossings as ports. This
+entity supplies the standard [olo_base_cc_bits](./olo_base_cc_bits.md) / [olo_base_cc_reset](./olo_base_cc_reset.md)
+crossings and an [olo_base_ram_sdp](./olo_base_ram_sdp.md). The fault-tolerant variant
+[olo_ft_fifo_async](../ft/olo_ft_fifo_async.md) reuses the same core but supplies TMR-hardened CDC primitives and adds
+ECC for data-path protection, so this base entity carries no fault-tolerance dependency.
