@@ -202,7 +202,7 @@ begin
                 end if;
 
             -- coverage off
-            when others => null; -- unreachable
+            when others => v.State := Idle; -- unreachable code, safe recovery
             -- coverage on
 
         end case;

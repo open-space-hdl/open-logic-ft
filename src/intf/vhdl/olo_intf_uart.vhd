@@ -222,7 +222,7 @@ begin
 
             -- coverage off
             when others =>
-                null; -- unreachable code
+                v.StateTx := Reset_s; -- unreachable code, safe recovery
             -- coverage on
 
         end case;
@@ -301,7 +301,7 @@ begin
 
             -- coverage off
             when others =>
-                null; -- unreachable code
+                v.StateRx := Idle_s; -- unreachable code, safe recovery
             -- coverage on
 
         end case;
