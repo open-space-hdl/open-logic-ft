@@ -6,6 +6,7 @@ src/base/vhdl/olo_base_pkg_array.vhd
 src/base/vhdl/olo_base_pkg_math.vhd
 src/ft/vhdl/olo_ft_pkg_ecc.vhd
 src/ft/vhdl/olo_ft_ecc_encode.vhd
+src/ft/vhdl/olo_ft_ecc_monitor.vhd
 src/ft/vhdl/olo_ft_ecc_decode.vhd
 src/base/vhdl/olo_base_tdm_mux.vhd
 src/base/vhdl/olo_base_strobe_div.vhd
@@ -40,7 +41,9 @@ src/base/vhdl/olo_base_fifo_packet.vhd
 src/ft/vhdl/olo_ft_fifo_packet.vhd
 src/base/vhdl/olo_base_dyn_sft.vhd
 src/base/vhdl/olo_base_delay_cfg.vhd
+src/ft/vhdl/olo_ft_delay_cfg.vhd
 src/base/vhdl/olo_base_delay.vhd
+src/ft/vhdl/olo_ft_delay.vhd
 src/base/vhdl/olo_base_latency_comp.vhd
 src/base/vhdl/olo_base_decode_firstbit.vhd
 src/base/vhdl/olo_base_crc.vhd
@@ -64,8 +67,11 @@ src/base/vhdl/olo_base_arb_wrr.vhd
 src/axi/vhdl/olo_axi_pl_stage.vhd
 src/axi/vhdl/olo_axi_pkg_protocol.vhd
 src/axi/vhdl/olo_axi_master_simple.vhd
+src/ft/vhdl/olo_ft_axi_master_simple.vhd
 src/axi/vhdl/olo_axi_master_full.vhd
+src/ft/vhdl/olo_ft_axi_master_full.vhd
 src/axi/vhdl/olo_axi_lite_slave.vhd
+src/ft/vhdl/olo_ft_ecc_monitor_axi.vhd
 3rdParty/en_cl_fix/hdl/en_cl_fix_private_pkg.vhd
 3rdParty/en_cl_fix/hdl/en_cl_fix_pkg.vhd
 src/fix/vhdl/olo_fix_private_lin_approx_sqrt_pkg.vhd

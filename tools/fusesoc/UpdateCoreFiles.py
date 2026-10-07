@@ -35,7 +35,7 @@ DEPENDENCIES = {
     "axi" : ["base"],
     "intf" : ["base"],
     "fix" : ["base"],
-    "ft" : ["base"]
+    "ft" : ["base", "axi"]
 }
 
 #Jinja setup
