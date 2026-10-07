@@ -105,9 +105,11 @@ therefore repaired at the next clock edge and upsets cannot accumulate while a v
 plain triplication (each copy holding its own value), an upset in copy A followed much later by an upset in copy B of
 the same bit would defeat the voter.
 
-The valid pulse is crossed with a toggle synchronizer (like in _olo_base_cc_pulse_) instead of
-[olo_ft_cc_pulse](./olo_ft_cc_pulse.md). The toggle synchronizer works for any clock ratio, supports 2 to 4 sync
-stages and produces a single-cycle output pulse, so the timing behavior of _olo_base_cc_simple_ is retained. Because a
+The valid pulse is crossed with the toggle synchronizer
+[olo_ft_private_cc_toggle](./olo_ft_private_cc_toggle.md) (like in _olo_base_cc_pulse_ and
+[olo_ft_cc_pulse](./olo_ft_cc_pulse.md)), using the reset crossing of this entity. The toggle synchronizer works for
+any clock ratio, supports 2 to 4 sync stages and produces a single-cycle output pulse, so the timing behavior of
+_olo_base_cc_simple_ is retained. Because a
 toggle is a level, the three synchronizer chains of [olo_ft_cc_bits](./olo_ft_cc_bits.md) may see a toggle one clock
 cycle apart, but the voted toggle still changes exactly once per input pulse. A single upset can at most delay the
 change until the last of the three chains sees the toggle, which is within the worst-case latency of a non-hardened

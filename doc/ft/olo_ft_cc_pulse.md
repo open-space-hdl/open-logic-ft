@@ -14,114 +14,89 @@ VHDL Source: [olo_ft_cc_pulse](../../src/ft/vhdl/olo_ft_cc_pulse.vhd)
 
 ## Description
 
-This component is a **TMR-hardened pulse clock domain crossing**. A single SEU on any flip-flop
-inside the crossing is masked, making the component suitable for pulse-based CDC in
-radiation-hardened designs.
+This component is a **TMR-hardened pulse clock domain crossing**. A single-event upset (SEU) on any flip-flop of the
+crossing is masked: it neither creates nor removes an output pulse.
 
-This is the fault-tolerant counterpart to [olo_base_cc_pulse](../base/olo_base_cc_pulse.md) with
-the same pulse-based semantics. Pulses on `In_Pulse` are converted to pulses on `Out_Pulse`
-across the clock domain boundary.
+It is the fault-tolerant counterpart of [olo_base_cc_pulse](../base/olo_base_cc_pulse.md) with the same interface and
+the same behavior: every single-cycle pulse on _In_Pulse_ produces exactly one single-cycle pulse on _Out_Pulse_. The
+entity works for any clock ratio.
+
+The pulse frequency must be significantly lower than the slower clock frequency. Two pulses on the same bit must be
+at least _3 + SyncStages_g_ cycles of the slower clock apart. Pulses that follow each other more closely may be
+merged into one output pulse.
+
+This block follows the general [clock-crossing principles](../base/clock_crossing_principles.md). Read through them for
+more information.
 
 ## Generics
 
-| Name         | Type     | Default | Description                                                  |
-| :----------- | :------- | :------ | :----------------------------------------------------------- |
-| NumPulses_g  | positive | 1       | Number of independent pulse channels                         |
-| SyncStages_g | positive | 3       | Number of receiver-domain sync stages. Range: 3-4. Default 3 matches Li Fig. 14 exactly. 4 stretches the output pulse by one cycle and relaxes the maximum clock-ratio constraint (see Timing Constraints). |
+| Name         | Type     | Default | Description                                            |
+| :----------- | :------- | ------- | :----------------------------------------------------- |
+| NumPulses_g  | positive | 1       | Number of independent pulse channels                   |
+| SyncStages_g | positive | 2       | Number of synchronization stages. <br />Range: 2 ... 4 |
 
 ## Interfaces
 
-| Name       | In/Out | Length         | Default | Description                                               |
-| :--------- | :----- | :------------- | :------ | :-------------------------------------------------------- |
-| In_Clk     | in     | 1              | -       | Sender's clock                                            |
-| In_RstIn   | in     | 1              | '0'     | Reset in sender's domain (synchronously asserted input)   |
-| In_RstOut  | out    | 1              | N/A     | Synchronized reset out (sender's domain)                  |
-| In_Pulse   | in     | _NumPulses_g_  | -       | Pulse inputs (pulses on `In_Clk`)                         |
-| Out_Clk    | in     | 1              | -       | Receiver's clock                                          |
-| Out_RstIn  | in     | 1              | '0'     | Reset in receiver's domain                                |
-| Out_RstOut | out    | 1              | N/A     | Synchronized reset out (receiver's domain)                |
-| Out_Pulse  | out    | _NumPulses_g_  | N/A     | Pulse outputs (pulses on `Out_Clk`)                       |
+| Name       | In/Out | Length        | Default | Description                                                  |
+| :--------- | :----- | :------------ | ------- | :----------------------------------------------------------- |
+| In_Clk     | in     | 1             | -       | Source clock                                                 |
+| In_RstIn   | in     | 1             | '0'     | Reset input (high-active, synchronous to _In_Clk_)           |
+| In_RstOut  | out    | 1             | N/A     | Reset output (see [clock-crossing principles](../base/clock_crossing_principles.md), synchronous to _In_Clk_) |
+| In_Pulse   | in     | _NumPulses_g_ | -       | Input pulses (synchronous to _In_Clk_)                       |
+| Out_Clk    | in     | 1             | -       | Destination clock                                            |
+| Out_RstIn  | in     | 1             | '0'     | Reset input (high-active, synchronous to _Out_Clk_)          |
+| Out_RstOut | out    | 1             | N/A     | Reset output (see [clock-crossing principles](../base/clock_crossing_principles.md), synchronous to _Out_Clk_) |
+| Out_Pulse  | out    | _NumPulses_g_ | N/A     | Output pulses (synchronous to _Out_Clk_), one single-cycle pulse per input pulse |
 
-## Detailed Description
+## Architecture
 
-### Architecture
-
-The component implements the modified short-pulse synchronizer from Li, Nelson, and Wirthlin [1]
-(Fig. 14), triplicated per Fig. 11 of the same paper. Per pulse channel, the design instantiates
-three independent copies (A, B, C) of the Li Fig. 14 synchronizer, with a per-bit 2-of-3 majority
-voter at the output. The internal topology of each copy is:
+The architecture follows _olo_base_cc_pulse_: every input pulse toggles a level, the level crosses the clock domain
+and an edge detector converts every change of the level back into a single-cycle pulse. Each pulse channel is one
+[olo_ft_private_cc_toggle](./olo_ft_private_cc_toggle.md); the resets of both domains are crossed once by
+[olo_ft_cc_reset](./olo_ft_cc_reset.md).
 
 ```text
-                        ┌──────────────── fb ───────────────┐
-                        │                                    │
-In_Pulse ─> [S  Q] ─> [D FF1 Q] ─(AND ~fb)─> [D FF2 Q] ─> [D FF3 Q] ─┬─> rcvSig
-            [R   ] <─────────────────────────────────────────────────┘
+           In_Clk domain               :                Out_Clk domain
+                                       :
+In_Pulse --> XOR --> ToggleIn --> olo_ft_cc_bits --> ToggleOut --+-------------> XOR --> Out_Pulse
+              ^         |              :          (3 chains +    |               ^
+              |         v              :           voter)        v               |
+            vote <- ToggleLast[A,B,C]  :                 ToggleOutLast[A,B,C] -> vote
 ```
 
-The SR latch (one per TMR copy, per bit) is a level-sensitive latch that converts the input
-pulse into a stable level. The level crosses the clock domain through FF1 and FF2, and FF3
-(plus optional FF4 for `SyncStages_g = 4`) stretches the output pulse so that the downstream
-voter sees sufficient overlap across all three TMR copies under worst-case sampling uncertainty.
-The feedback from the last FF resets the latch and simultaneously gates the AND gate, producing
-a clean single pulse at the receiver.
+- **Toggle register (_In_Clk_):** three copies. The next value of every copy is computed from the voted value, so an
+  upset copy is repaired at the next clock edge.
+- **Synchronizer:** [olo_ft_cc_bits](./olo_ft_cc_bits.md) with three independent synchronizer chains and a majority
+  voter. Because a toggle is a level, the three chains may see a toggle one clock cycle apart, but the voted level
+  still changes exactly once per input pulse.
+- **Edge detector (_Out_Clk_):** three copies of the last level with a voter.
 
-### TMR Safety
+The design contains no latches. Every path between the clock domains starts and ends at a flip-flop and is
+constrained like the paths of [olo_ft_cc_bits](./olo_ft_cc_bits.md).
 
-With the 2-cycle output pulse width (for `SyncStages_g = 3`) combined with the per-bit majority
-voter, the design is provably immune to any single SEU on any flip-flop in any of the three
-chains, even under worst-case sampling uncertainty between the chains. This has been verified
-both analytically and experimentally in [1], showing 6 to 10 orders of magnitude MTTF improvement
-over unmitigated designs.
+### Limitations
 
-The architecture sets `syn_radhardlevel = "none"` at the architecture level to prevent tools
-like Synplify (used by Microchip Libero) from triplicating the already-triplicated registers.
+- TMR masks one upset per register and clock cycle. Two upsets in different copies of the same register within one
+  clock cycle are not masked.
+- The voters and the combinational logic are not triplicated. The design targets upsets of storage elements (SEU),
+  not single-event transients in combinational logic.
+- The reset crossing [olo_ft_cc_reset](./olo_ft_cc_reset.md) protects its acknowledge paths with TMR. An upset in its
+  request-path registers leads to a spurious reset of both clock domains, not to a spurious output pulse.
 
-### Timing Constraints
+### History
 
-The user must respect these constraints:
+Earlier versions implemented the short-pulse synchronizer of Li, Nelson and Wirthlin [1] (Fig. 14) with a set/reset
+latch per TMR copy. FPGA tools map such a latch to a transparent latch whose gate and data input both follow the
+input pulse, so the end of the pulse races the closing of the latch (a pulse can be lost), and the paths through the
+latch are not timed. The toggle-based architecture avoids latches and supports any clock ratio.
 
-1. **Input pulse width**: each input pulse must return to zero before the feedback round-trip
-   completes. A single-cycle pulse on `In_Clk` is always safe. A multi-cycle pulse is fine if
-   it returns to zero before the feedback arrives back at the SR latch. A sustained level
-   signal is **not** supported. Use [olo_ft_cc_bits](./olo_ft_cc_bits.md) for level signals.
+## Constraints
 
-2. **Maximum clock ratio**: for the handshake to work correctly, the feedback round-trip time
-   must exceed the input pulse duration. Approximately:
+The same constraints as for _olo_base_cc_pulse_ apply, see
+[clock-crossing principles](../base/clock_crossing_principles.md).
 
-   ```text
-   f_out < SyncStages_g * f_in
-   ```
-
-   For `SyncStages_g = 3` and a single-cycle input pulse, this means `f_out < 3 * f_in`.
-   Exceeding this ratio causes the feedback to return while the input pulse is still high,
-   creating an S/R conflict in the SR latch. If you need a larger clock ratio, increase
-   `SyncStages_g` to 4.
-
-3. **Minimum spacing between consecutive pulses on the same bit**: approximately
-   `2 * SyncStages_g + 2` `Out_Clk` cycles. The next pulse must not be issued until the
-   feedback handshake is complete (latch reset, feedback de-asserted).
-
-4. **Output pulse width**: `SyncStages_g - 1` `Out_Clk` cycles (2 cycles for `SyncStages_g = 3`,
-   3 cycles for `SyncStages_g = 4`). Downstream logic must sample on any cycle while the output
-   is high. If a single-cycle pulse is required at the output, add an edge detector on
-   `Out_Pulse`.
-
-### Reset Behavior
-
-Reset is crossed between the two clock domains using the TMR-hardened
-[olo_ft_cc_reset](./olo_ft_cc_reset.md), consistent with the `olo_base_cc_reset` usage in
-`olo_base_cc_pulse`. The resulting synchronized resets (`In_RstOut`, `Out_RstOut`) are exposed
-to the user to help with reset management in surrounding logic.
-
-### Synthesis Notes
-
-- The SR latch is an **intentional VHDL latch**. Synthesis tool warnings about latch inference
-  on `LatchOut` can be ignored; the latch is a core part of the design.
-- `syn_radhardlevel = "none"` prevents vendor TMR from triplicating already-triplicated
-  registers. Tools that do not recognize this attribute will simply ignore it.
-- Attributes `dont_merge`, `preserve`, `syn_preserve`, `syn_keep`, `dont_touch` are applied to
-  prevent the synthesis tool from merging the three TMR copies into a single register chain
-  (which would defeat the TMR).
+Note that the scoped constraints for automatic constraining in _AMD Vivado_ are only provided for the _olo_base_
+clock crossings. Constrain the clock crossings of _olo_ft_ entities manually.
 
 ## References
 

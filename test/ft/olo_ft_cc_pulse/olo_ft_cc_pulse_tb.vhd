@@ -28,7 +28,7 @@ entity olo_ft_cc_pulse_tb is
         runner_cfg     : string;
         ClockRatio_N_g : integer               := 3;
         ClockRatio_D_g : integer               := 2;
-        SyncStages_g   : positive range 3 to 4 := 3
+        SyncStages_g   : positive range 2 to 4 := 2
     );
 end entity;
 
@@ -45,12 +45,15 @@ architecture sim of olo_ft_cc_pulse_tb is
     constant ClkOut_Frequency_c : real := ClkIn_Frequency_c * ClockRatio_c;
     constant ClkOut_Period_c    : time := (1 sec) / ClkOut_Frequency_c;
 
-    -- Expected output pulse width: SyncStages_g - 1 cycles on Out_Clk
-    constant ExpectedOutPulse_c : integer := SyncStages_g - 1;
+    -- Expected output pulse width: one Out_Clk cycle
+    constant ExpectedOutPulse_c : integer := 1;
 
     -- Slower of the two clocks defines the reaction time of the crossing
     constant SlowerClock_Period_c : time := (1 sec) / minimum(ClkIn_Frequency_c, ClkOut_Frequency_c);
     constant MaxReactionTime_c    : time := (8 + SyncStages_g) * SlowerClock_Period_c;
+
+    -- Documented minimum spacing of two pulses on the same bit: 3 + SyncStages_g slower clock cycles
+    constant MinSpacing_c : time := (3 + SyncStages_g) * SlowerClock_Period_c;
 
     -----------------------------------------------------------------------------------------------
     -- Interface Signals
@@ -63,6 +66,9 @@ architecture sim of olo_ft_cc_pulse_tb is
     signal Out_RstIn  : std_logic                                  := '1';
     signal Out_RstOut : std_logic;
     signal Out_Pulse  : std_logic_vector(NumPulses_c - 1 downto 0);
+
+    -- Output pulses counted on bit 2
+    signal OutCount : natural := 0;
 
     -----------------------------------------------------------------------------------------------
     -- Helpers
@@ -79,17 +85,19 @@ architecture sim of olo_ft_cc_pulse_tb is
         Data(bit_idx) <= '0';
     end procedure;
 
-    -- Wait for a pulse on bit <bit_idx> of Out_Pulse, with timeout in Out_Clk cycles
+    -- Wait for a pulse on bit <bit_idx> of Out_Pulse, with timeout
     procedure waitForPulse (
         constant bit_idx : in    natural;
-        constant timeout : in    natural;
+        constant timeout : in    time;
         signal   Clk     : in    std_logic;
         signal   Data    : in    std_logic_vector;
         variable success : out   boolean) is
+        variable Start_v : time;
     begin
         success := false;
+        Start_v := now;
 
-        for i in 0 to timeout - 1 loop
+        while now - Start_v < timeout loop
             wait until rising_edge(Clk);
             if Data(bit_idx) = '1' then
                 success := true;
@@ -148,6 +156,21 @@ begin
     Out_Clk <= not Out_Clk after 0.5 * ClkOut_Period_c;
 
     -----------------------------------------------------------------------------------------------
+    -- Output pulse counter (bit 2), every pulse lasts one cycle
+    -----------------------------------------------------------------------------------------------
+    p_count : process (Out_Clk) is
+        variable Last_v : std_logic := '0';
+    begin
+        if rising_edge(Out_Clk) then
+            if Out_Pulse(2) = '1' then
+                OutCount <= OutCount + 1;
+                check_equal(Last_v, '0', "Output pulse longer than one cycle");
+            end if;
+            Last_v := Out_Pulse(2);
+        end if;
+    end process;
+
+    -----------------------------------------------------------------------------------------------
     -- TB Control
     -----------------------------------------------------------------------------------------------
     test_runner_watchdog(runner, 1 ms);
@@ -155,6 +178,7 @@ begin
     p_control : process is
         variable Success_v : boolean;
         variable Cycles_v  : natural;
+        variable Count_v   : natural;
     begin
         test_runner_setup(runner, runner_cfg);
 
@@ -184,15 +208,15 @@ begin
             if run("SinglePulse") then
                 -- Send a single pulse on bit 0 and verify it arrives
                 sendPulse(0, In_Clk, In_Pulse);
-                waitForPulse(0, 30, Out_Clk, Out_Pulse, Success_v);
-                check(Success_v, "Output pulse did not arrive within 30 cycles");
+                waitForPulse(0, MaxReactionTime_c, Out_Clk, Out_Pulse, Success_v);
+                check(Success_v, "Output pulse did not arrive within the reaction time");
                 countHighCycles(0, 10, Out_Clk, Out_Pulse, Cycles_v);
                 check_equal(Cycles_v, ExpectedOutPulse_c, "Output pulse width");
 
             elsif run("MultipleBitsIndependent") then
                 -- Pulse on bit 1, verify other bits stay low
                 sendPulse(1, In_Clk, In_Pulse);
-                waitForPulse(1, 30, Out_Clk, Out_Pulse, Success_v);
+                waitForPulse(1, MaxReactionTime_c, Out_Clk, Out_Pulse, Success_v);
                 check(Success_v, "Output pulse on bit 1 did not arrive");
                 check_equal(Out_Pulse(0), '0', "Bit 0 should not be pulsed");
                 check_equal(Out_Pulse(2), '0', "Bit 2 should not be pulsed");
@@ -206,7 +230,7 @@ begin
             elsif run("BackToBackPulses") then
                 -- Send two pulses with enough spacing
                 sendPulse(0, In_Clk, In_Pulse);
-                waitForPulse(0, 30, Out_Clk, Out_Pulse, Success_v);
+                waitForPulse(0, MaxReactionTime_c, Out_Clk, Out_Pulse, Success_v);
                 check(Success_v, "First pulse did not arrive");
 
                 for i in 1 to 30 loop
@@ -225,7 +249,7 @@ begin
 
                 -- Send the second pulse
                 sendPulse(0, In_Clk, In_Pulse);
-                waitForPulse(0, 30, Out_Clk, Out_Pulse, Success_v);
+                waitForPulse(0, MaxReactionTime_c, Out_Clk, Out_Pulse, Success_v);
                 check(Success_v, "Second pulse did not arrive");
 
             elsif run("AllBitsSimultaneous") then
@@ -236,10 +260,8 @@ begin
                 In_Pulse <= (others => '0');
 
                 -- Wait for the combined pulse to arrive
-                for i in 0 to 29 loop
-                    wait until rising_edge(Out_Clk);
-                    exit when Out_Pulse /= std_logic_vector'(NumPulses_c - 1 downto 0 => '0');
-                end loop;
+                wait until rising_edge(Out_Clk) and Out_Pulse /= std_logic_vector'(NumPulses_c - 1 downto 0 => '0')
+                    for MaxReactionTime_c;
 
                 check_equal(Out_Pulse, std_logic_vector'(NumPulses_c - 1 downto 0 => '1'),
                             "All bits should pulse simultaneously");
@@ -291,8 +313,8 @@ begin
                 check_no_activity_stdlv(Out_Pulse, MaxReactionTime_c*2, "Unexpected pulse after Out_RstIn");
 
             elsif run("PulseDuringReset") then
-                -- A pulse arriving while the sender side is in reset must be discarded: the SR
-                -- latch is held clear as long as the synchronized reset is asserted
+                -- A pulse arriving while the sender side is in reset must be discarded: the toggle
+                -- register is held clear as long as the synchronized reset is asserted
                 wait until rising_edge(In_Clk);
                 In_RstIn <= '1';
                 wait for MaxReactionTime_c;
@@ -300,6 +322,19 @@ begin
                 wait until rising_edge(In_Clk);
                 In_RstIn <= '0';
                 check_no_activity_stdlv(Out_Pulse, MaxReactionTime_c*2, "Pulse leaked through reset");
+
+            elsif run("MinimumSpacing") then
+                -- Pulses at the documented minimum spacing: every pulse arrives as one single-cycle
+                -- output pulse
+                Count_v := OutCount;
+
+                for i in 1 to 20 loop
+                    sendPulse(2, In_Clk, In_Pulse);
+                    wait for MinSpacing_c - ClkIn_Period_c;
+                end loop;
+
+                wait for MaxReactionTime_c;
+                check_equal(OutCount - Count_v, 20, "Output pulses at the minimum spacing");
 
             end if;
 

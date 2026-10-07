@@ -93,8 +93,8 @@ general level-signal case by taking explicit control of the triplication and the
 
 - [olo_base_cc_bits](../base/olo_base_cc_bits.md): the non-TMR version with the same interface.
   For most designs this is sufficient.
-- [olo_ft_cc_pulse](./olo_ft_cc_pulse.md): TMR-hardened CDC for pulses (Li Fig. 14 design).
-  Use when the input is an event/pulse that must arrive exactly once at the receiver.
+- [olo_ft_cc_pulse](./olo_ft_cc_pulse.md): TMR-hardened CDC for pulses (toggle crossing over
+  `olo_ft_cc_bits`). Use when the input is an event/pulse that must arrive exactly once at the receiver.
 - [olo_ft_fifo_async](./olo_ft_fifo_async.md): uses `olo_ft_cc_bits` internally for the
   Gray-coded pointer crossings. Per-bit voting on Gray codes produces only valid pointer
   values, so the crossing is safe (see the discussion there).
