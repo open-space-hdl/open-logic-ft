@@ -39,6 +39,9 @@ Note that components are split into categories.
     - [ECC Codec (olo\_ft\_ecc\_\<...\>)](#ecc-codec-olo_ft_ecc_)
     - [RAM Implementations (olo\_ft\_ram\_\<...\>)](#ram-implementations-olo_ft_ram_)
     - [FIFO Implementations (olo\_ft\_fifo\_\<...\>)](#fifo-implementations-olo_ft_fifo_)
+    - [Timing Related Entities (ft)](#timing-related-entities-ft)
+    - [AXI Interfaces (olo\_ft\_axi\_\<...\>)](#axi-interfaces-olo_ft_axi_)
+    - [Monitoring (olo\_ft\_ecc\_monitor\<...\>)](#monitoring-olo_ft_ecc_monitor)
     - [Private Entities](#private-entities)
 
 ## base
@@ -345,14 +348,34 @@ base counterpart.
 ### FIFO Implementations (olo_ft_fifo_\<...\>)
 
 The ECC-protected counterparts of the [olo_base_fifo_\<...\>](#fifo-implementations-olo_base_fifo_)
-entities. An asynchronous variant will be introduced as well once fault-tolerant clock-crossing
-primitives have been introduced to the ft area.
+entities.
 
 | Entity                                               | Description                                                  |
 | ---------------------------------------------------- | ------------------------------------------------------------ |
 | [olo_ft_fifo_sync](./ft/olo_ft_fifo_sync.md)         | ECC-protected synchronous FIFO (single clock)               |
 | [olo_ft_fifo_async](./ft/olo_ft_fifo_async.md)       | ECC-protected asynchronous FIFO (separate write and read clocks) |
 | [olo_ft_fifo_packet](./ft/olo_ft_fifo_packet.md)     | ECC-protected packet FIFO (store and forward) with the ability to drop packets on the write side and skip or repeat packets on the read side |
+
+### Timing Related Entities (ft)
+
+| Entity                                             | Description                                                  |
+| -------------------------------------------------- | ------------------------------------------------------------ |
+| [olo_ft_delay](./ft/olo_ft_delay.md)               | ECC-protected fixed duration delay (fixed number of data-beats) |
+| [olo_ft_delay_cfg](./ft/olo_ft_delay_cfg.md)       | ECC-protected configurable duration delay (runtime configurable number of data-beats) |
+
+### AXI Interfaces (olo_ft_axi_\<...\>)
+
+| Entity                                                             | Description                                                  |
+| ------------------------------------------------------------------ | ------------------------------------------------------------ |
+| [olo_ft_axi_master_simple](./ft/olo_ft_axi_master_simple.md)       | ECC-protected AXI4 master (simple interface, aligned transfers) |
+| [olo_ft_axi_master_full](./ft/olo_ft_axi_master_full.md)           | ECC-protected AXI4 master with unaligned-access support and width conversion |
+
+### Monitoring (olo_ft_ecc_monitor\<...\>)
+
+| Entity                                                             | Description                                                  |
+| ------------------------------------------------------------------ | ------------------------------------------------------------ |
+| [olo_ft_ecc_monitor](./ft/olo_ft_ecc_monitor.md)                   | EDAC monitor: per-channel saturating SEC/DED counters with sticky DED flags and a read-and-clear port |
+| [olo_ft_ecc_monitor_axi](./ft/olo_ft_ecc_monitor_axi.md)           | EDAC monitor with AXI4-Lite register interface and interrupt output |
 
 ### Private Entities
 
