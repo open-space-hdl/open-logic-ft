@@ -37,7 +37,13 @@ jobs:
         uses: ./.github/actions/setup-environment
         with:
           os: ${{ runner.os }}
-          ghdl: true
+      #GHDL with the mcode backend: the SEU tests of the TMR entities force internal registers through
+      #VHDL-2008 external names, which the GHDL 6.0.0 LLVM build of the upstream workflow does not support
+      - name: Setup GHDL
+        uses: ghdl/setup-ghdl@v1
+        with:
+          version: latest
+          backend: mcode
       #Run Simulation: all configurations of the ft area, the minimal set of the other areas
       - name: Run Simulation
         shell: bash
