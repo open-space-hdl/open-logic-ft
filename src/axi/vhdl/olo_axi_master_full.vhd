@@ -49,7 +49,8 @@ entity olo_axi_master_full is
         UserDataWidth_g            : positive                 := 32;
         ImplRead_g                 : boolean                  := true;
         ImplWrite_g                : boolean                  := true;
-        RamBehavior_g              : string                   := "RBW"
+        RamBehavior_g              : string                   := "RBW";
+        RamStyle_g                 : string                   := "auto"
     );
     port (
         -- Control Signals
@@ -303,7 +304,7 @@ begin
                     end if;
 
                 -- coverage off
-                when others => null;    -- unreachable code
+                when others => v.WrCmdFsm := Idle_s; -- unreachable code, safe recovery
                 -- coverage on
 
             end case;
@@ -335,7 +336,7 @@ begin
                     end if;
 
                 -- coverage off
-                when others => null; -- unreachable code
+                when others => v.WrWconvFsm := Idle_s; -- unreachable code, safe recovery
                 -- coverage on
             end case;
 
@@ -400,7 +401,7 @@ begin
                     end if;
 
                 -- coverage off
-                when others => null; -- unreachable code
+                when others => v.WrAlignFsm := Idle_s; -- unreachable code, safe recovery
                 -- coverage on
             end case;
 
@@ -484,7 +485,7 @@ begin
                     end if;
 
                 -- coverage off
-                when others => null;    -- unreachable code
+                when others => v.RdCmdFsm := Idle_s; -- unreachable code, safe recovery
                 -- coverage on
             end case;
 
@@ -528,7 +529,7 @@ begin
                     end if;
 
                 -- coverage off
-                when others => null; -- unreachable code
+                when others => v.RdDataFsm := Idle_s; -- unreachable code, safe recovery
                 -- coverage on
             end case;
 
@@ -615,7 +616,8 @@ begin
             DataFifoDepth_g             => DataFifoDepth_g,
             ImplRead_g                  => ImplRead_g,
             ImplWrite_g                 => ImplWrite_g,
-            RamBehavior_g               => RamBehavior_g
+            RamBehavior_g               => RamBehavior_g,
+            RamStyle_g                  => RamStyle_g
         )
         port map (
             -- Control Signals
