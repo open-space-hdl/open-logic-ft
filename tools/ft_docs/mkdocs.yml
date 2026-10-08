@@ -1,0 +1,146 @@
+# Documentation site of Open Logic FT, published at https://openspacehdl.org/open-logic-ft/
+#
+# Fork-only (open-space-hdl/open-logic-ft), never part of a pull request to open-logic/open-logic.
+# The pages are the Markdown files of the repository (Readme.md, doc/); hooks.py adds them to the site and links
+# every other repository file on GitHub. Only content/index.md, the start page, is written for the site.
+# Local preview:
+#
+#   python -m pip install -r tools/ft_docs/requirements.txt
+#   mkdocs serve -f tools/ft_docs/mkdocs.yml
+
+site_name: Open Logic FT
+site_description: Fault-tolerant fork of the Open Logic FPGA Library
+site_url: https://openspacehdl.org/open-logic-ft/
+repo_url: https://github.com/open-space-hdl/open-logic-ft
+repo_name: open-space-hdl/open-logic-ft
+edit_uri: edit/fault-tolerant/
+copyright: >-
+  <a href="https://openspacehdl.org">Open Space HDL</a> ·
+  Open Logic FT is licensed under the PSI HDL Library License, Version 1.0, the licence of Open Logic
+
+docs_dir: content
+use_directory_urls: false
+strict: true
+
+hooks:
+  - hooks.py
+
+extra:
+  homepage: https://openspacehdl.org
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/open-space-hdl
+      name: Open Space HDL on GitHub
+  collect:
+    include:
+      - Readme.md
+      - Changelog.md
+      - Contributing.md
+      - CODE_OF_CONDUCT.md
+      - doc/**
+    # Logos and status badges of the GitHub view (the badges are images served by third parties)
+    strip:
+      - '^<img src="[^"]*Logo\.png" alt="Logo"'
+      - '^!\[[^\]]*\]\(https://(img\.shields\.io|storage\.googleapis\.com|github\.com/[^)]*/badge\.svg)'
+      - '^\[!\[[^\]]*\]\(https://(img\.shields\.io|badges\.gitter\.im)'
+
+nav:
+  - Home: index.md
+  - Fault tolerance:
+      - Principles: doc/ft/olo_ft_principles.md
+      - doc/ft/*.md
+  - Entity list: doc/EntityList.md
+  - base:
+      - Clock crossing principles: doc/base/clock_crossing_principles.md
+      - doc/base/*.md
+  - axi: doc/axi/*.md
+  - intf: doc/intf/*.md
+  - fix:
+      - Principles: doc/fix/olo_fix_principles.md
+      - doc/fix/*.md
+  - Tutorials: doc/tutorials/*.md
+  - Open Logic:
+      - About Open Logic: Readme.md
+      - How to: doc/HowTo.md
+      - Conventions: doc/Conventions.md
+      - CI workflows: doc/CI-Workflows.md
+      - Porting from psi_common: doc/PsiCommonPorting.md
+      - Changelog: Changelog.md
+      - Contributing: Contributing.md
+      - Code of conduct: CODE_OF_CONDUCT.md
+
+theme:
+  name: material
+  custom_dir: overrides
+  language: en
+  logo: assets/images/logo.svg
+  favicon: assets/images/favicon.svg
+  font: false
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - content.action.edit
+    - content.code.copy
+    - navigation.footer
+    - navigation.indexes
+    - navigation.tabs
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
+
+extra_css:
+  - assets/stylesheets/brand.css
+
+plugins:
+  - search
+
+# Broken links of the Open Logic documentation are reported, but do not stop the build: upstream content is not
+# edited on the backlog (fix it upstream).
+validation:
+  nav:
+    omitted_files: info
+    not_found: warn
+  links:
+    not_found: info
+    anchors: info
+    absolute_links: info
+    unrecognized_links: info
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.superfences
+  - pymdownx.tasklist
+  - pymdownx.tilde:
+      subscript: false
+  - mdx_truly_sane_lists:
+      nested_indent: 2
