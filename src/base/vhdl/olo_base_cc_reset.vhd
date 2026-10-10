@@ -98,6 +98,10 @@ architecture struct of olo_base_cc_reset is
     attribute async_reg of RstRqstA2B : signal is AsyncReg_TreatAsync_c;
     attribute async_reg of RstAckA2B  : signal is AsyncReg_TreatAsync_c;
 
+    -- Synthesis attributes - no automatic TMR (no voters between the synchronizer stages)
+    attribute syn_radhardlevel of RstRqstB2A : signal is SynRadhardlevel_None_c;
+    attribute syn_radhardlevel of RstRqstA2B : signal is SynRadhardlevel_None_c;
+
 begin
 
     -- Domain A

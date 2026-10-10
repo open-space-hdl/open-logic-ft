@@ -94,6 +94,11 @@ architecture struct of olo_base_cc_bits is
     attribute async_reg of RegN  : signal is AsyncReg_TreatAsync_c;
     attribute async_reg of RegIn : signal is AsyncReg_TreatAsync_c;
 
+    -- Synthesis attributes - no automatic TMR (no voters between the synchronizer stages)
+    attribute syn_radhardlevel of Reg0  : signal is SynRadhardlevel_None_c;
+    attribute syn_radhardlevel of RegN  : signal is SynRadhardlevel_None_c;
+    attribute syn_radhardlevel of RegIn : signal is SynRadhardlevel_None_c;
+
     -- Input clock (required for automatic constraining in vivado)
     signal In_Clk_Sig : std_logic;
 
