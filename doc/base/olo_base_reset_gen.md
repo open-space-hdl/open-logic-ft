@@ -70,3 +70,6 @@ synchronous counter asserts its reset output only upon _Clk_ edges, an additiona
 output.
 
 ![architecture](./misc/olo_base_reset_gen_async.svg)
+
+The reset synchronizer FFs are excluded from automatic TMR, see
+[clock crossing principles](./clock_crossing_principles.md#radiation-hardening).

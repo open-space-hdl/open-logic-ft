@@ -73,6 +73,10 @@ architecture struct of olo_base_reset_gen is
     -- Synthesis attributes - asynchronous register
     attribute async_reg of DsSync : signal is AsyncReg_TreatAsync_c;
 
+    -- Synthesis attributes - no automatic TMR (no voters between the synchronizer stages)
+    attribute syn_radhardlevel of RstSyncChain : signal is SynRadhardlevel_None_c;
+    attribute syn_radhardlevel of DsSync       : signal is SynRadhardlevel_None_c;
+
 begin
 
     -- Reset Synchronizer

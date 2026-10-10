@@ -72,4 +72,7 @@ As a result it is guaranteed that during at least one clock cycle both resets ar
 The VHDL code contains all synthesis attributes required to ensure correct behavior of tools (e.g. avoid mapping of the
 synchronizer FFs into shift registers) for all supported tools/vendors.
 
+The synchronizer FFs are excluded from automatic TMR, see
+[clock-crossing principles](clock_crossing_principles.md#radiation-hardening).
+
 Regarding timing constraints, refer to [clock-crossing principles](clock_crossing_principles.md).

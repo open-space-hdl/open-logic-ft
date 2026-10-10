@@ -60,4 +60,7 @@ Below figures shows the implementation for _SyncStages_g=2_.
 The VHDL code contains all synthesis attributes required to ensure correct behavior of tools (e.g. avoid mapping of the
 synchronizer FFs into shift registers) for all supported tools.
 
+The synchronizer FFs are excluded from automatic TMR, see
+[clock-crossing principles](clock_crossing_principles.md#radiation-hardening).
+
 Regarding timing constraints, refer to [clock-crossing principles](clock_crossing_principles.md).
