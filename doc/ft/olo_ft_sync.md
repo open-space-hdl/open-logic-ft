@@ -58,8 +58,10 @@ An upset in one chain is shifted out after _SyncStages_g_ clock cycles and maske
 
 - The three chains sample the asynchronous input independently. Around a change of the input, the chains may resolve
   the new value one clock cycle apart; the voted output follows the second chain. An upset of one of the two agreeing
-  chains in exactly this cycle is not masked. This is inherent to the synchronization of an asynchronous signal with
-  TMR (see the analysis in [1]).
+  chains in exactly this cycle shifts the voted change by one clock cycle, which is within the normal latency
+  variation of a synchronizer. Input values that are shorter than one clock period plus the skew between the chains
+  can be lost in this case (see the [stability requirement](./olo_ft_cc_bits.md#stability-requirement) of
+  _olo_ft_cc_bits_ and the analysis in [1]).
 - TMR masks one upset per bit and clock cycle. Two upsets in different chains of the same bit within _SyncStages_g_
   clock cycles are not masked.
 - The voters are not triplicated. The design targets upsets of storage elements (SEU), not single-event transients in

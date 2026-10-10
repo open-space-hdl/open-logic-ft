@@ -145,6 +145,10 @@ on any synchronizer flip-flop is masked by the voter. The reset crossing is hard
 to the rest of the design; the crossing entities carry `syn_radhardlevel = "none"` on their architectures
 so vendor TMR tools do not triplicate the already-triplicated registers.
 
+The crossings do not rely on vendor TMR because Synplify applies local TMR to the synchronizers of
+_olo_base_cc_bits_ including voters between the synchronizer stages, which reduces the metastability MTBF (see
+[olo_ft_cc_bits](./olo_ft_cc_bits.md#tmr-and-clock-crossings)).
+
 The remaining control flip-flops (binary pointers, flags and the handshake logic inside the control core)
 are **not** manually triplicated. They should be covered by vendor TMR
 (`syn_radhardlevel = "tmr"`) as part of the surrounding radiation-hardened design, like all other
@@ -160,9 +164,11 @@ and the inherent randomness of asynchronous sampling. This is called **sampling 
 If this causes a 2-vs-1 disagreement, a single SEU on one of the agreeing copies can flip the
 majority vote, defeating TMR with a single fault.
 
-Their fault injection experiments showed catastrophic failure rates for naively triplicated
-**pulse-based** synchronizers: only 47% of signals arrived correctly in the presence of a
-sensitive SEU.
+Their fault injection experiments (configuration upsets of an SRAM-based FPGA) showed catastrophic
+failure rates for naively triplicated synchronizers with too short **pulses**: only 47% of signals arrived
+correctly in the presence of a sensitive SEU. Fan and Deng [2] describe the same effect.
+[olo_ft_cc_bits](./olo_ft_cc_bits.md#stability-requirement) avoids it for general signals with a stability
+requirement on the input. The Gray-coded pointers do not need this requirement, as shown below.
 
 #### Why Per-Bit Voting Is Safe for Gray-Coded FIFO Pointers
 
@@ -187,6 +193,10 @@ identical across all three TMR copies). Therefore:
 Since all other bits are voted correctly, the overall voted pointer is always either `Gray(N)` or
 `Gray(N+1)`, **never an invalid value**. An invalid pointer would require **two simultaneous
 SEUs**, which is beyond TMR's protection model.
+
+This holds across all three copies, not only within one copy: the constraints limit the delay of all pointer
+paths of all three copies to one period of the faster clock, which is at most one write-clock period. At every
+receiver clock edge, all copies therefore sample the pointer within a window in which it changes at most once.
 
 **Property 2: Both possible voted values are safe for the FIFO.**
 
@@ -226,27 +236,28 @@ than the receiver clock and the pointer increments multiple times between receiv
   transition (the previous transitions have already settled)
 - The receiver may "skip" intermediate pointer values, but each sample captures a valid Gray
   code value (or resolves metastability on one bit to an adjacent valid value)
-- The only implicit requirement is that routing skew between pointer bits is less than one sender
-  clock period, which is always satisfied in practical designs
+- The only requirement is that the skew between all pointer bits of all three copies is less than one sender
+  clock period. The constraints of the [clock-crossing principles](../base/clock_crossing_principles.md)
+  (maximum delay of one period of the faster clock) guarantee this, provided they cover all three copies.
 
 #### Summary
 
-| Concern | General TMR CDC [1] | Gray-Coded FIFO Pointers |
+| Concern | Short pulses through naively triplicated synchronizers [1] | Gray-Coded FIFO Pointers |
 |---------|---------------------|--------------------------|
 | Signal type | Transient pulse | Persistent level (multi-bit) |
 | Voter granularity | Whole signal | Per-bit independent |
 | "Wrong" voted value | Information lost | Previous valid pointer (safe) |
 | Self-correction | No, the pulse is gone | Yes, within 1 cycle |
 | Invalid output possible? | Yes | No, always Gray(N) or Gray(N+-1) |
-| Single SEU consequence | MTTF worse than unmitigated | No functional impact |
-| Clock ratio constraint | Yes (pulsewidth dependent) | None |
+| Single SEU consequence | MTTF can be worse than a single synchronizer [1] | No functional impact |
+| Requirement on the input | Stability requirement of [olo_ft_cc_bits](./olo_ft_cc_bits.md#stability-requirement) | None |
 
 #### Recommendations for Radiation-Hardened Designs
 
 1. **Apply vendor TMR** (`syn_radhardlevel = "tmr"`) to the logic surrounding the FIFO,
-   including the FIFO's internal control logic. TMR covers flip-flops, LUT contents, and routing,
-   which is everything except the block RAM contents (protected by the ECC) and the pointer/reset
-   crossings (protected by their built-in manual TMR).
+   including the FIFO's internal control logic. Synplify's local TMR triplicates the flip-flops (on flash-based
+   devices such as PolarFire and RTG4, the configuration is not susceptible to upsets). The block RAM contents are
+   protected by the ECC and the pointer/reset crossings by their built-in manual TMR.
 
 2. **Consider the FIFO residency time** of your data. The SEU exposure window of a FIFO entry is
    the time between its write and its read. For long-lived buffer contents, use a scrubbed RAM

@@ -71,17 +71,14 @@ A single upset of any flip-flop neither produces a spurious output pulse nor los
   a toggle one clock cycle apart (sampling uncertainty). Because the toggle is a level and not a pulse, the voted
   toggle still changes exactly once per input pulse. A single upset during that window can at most delay the change
   until the last of the three chains sees the toggle, which is within the worst-case latency of a non-hardened
-  synchronizer.
+  synchronizer. Each toggle level lasts at least the minimum pulse spacing, so the
+  [stability requirement](./olo_ft_cc_bits.md#stability-requirement) of _olo_ft_cc_bits_ is fulfilled by
+  construction.
 
-### Why Not olo_ft_cc_pulse
+## Relationship to Other Components
 
-[olo_ft_cc_pulse](./olo_ft_cc_pulse.md) implements the SR-latch based synchronizer from Li et al. Using it as the
-building block of the multi-bit crossings would change their behavior compared to the _olo_base_ counterparts:
-
-- It limits the clock ratio (approximately _f_out < SyncStages_g x f_in_). The feedback paths of
-  _olo_ft_cc_status_ and _olo_ft_cc_handshake_ cross in the opposite direction, so both clocks would have to be within
-  a factor of three of each other. The _olo_base_ crossings work for any clock ratio.
-- It supports only 3 or 4 sync stages, while the _olo_base_ crossings support 2 to 4.
-- Its output pulse is _SyncStages_g - 1_ cycles long and would need an additional edge detector.
-
-The toggle-based crossing has none of these restrictions and keeps the timing of the _olo_base_ crossings.
+- [olo_ft_cc_pulse](./olo_ft_cc_pulse.md) consists of one [olo_ft_cc_reset](./olo_ft_cc_reset.md) and one instance
+  of this entity per pulse channel.
+- [olo_ft_cc_simple](./olo_ft_cc_simple.md), [olo_ft_cc_status](./olo_ft_cc_status.md) and
+  [olo_ft_cc_handshake](./olo_ft_cc_handshake.md) instantiate this entity directly, so that all their paths share one
+  reset crossing.
