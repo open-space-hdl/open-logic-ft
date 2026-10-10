@@ -8,6 +8,7 @@ filesets:
     files:
       - "vhdl/olo_ft_ecc_decode.vhd"
       - "vhdl/olo_ft_ecc_encode.vhd"
+      - "vhdl/olo_ft_fifo_async.vhd"
       - "vhdl/olo_ft_fifo_packet.vhd"
       - "vhdl/olo_ft_fifo_sync.vhd"
       - "vhdl/olo_ft_pkg_ecc.vhd"

@@ -137,6 +137,13 @@ def add_configs(olo_tb):
         for AlmEmpty in [True, False]:
             named_config(tb, {'AlmFullOn_g': AlmFull, 'AlmEmptyOn_g': AlmEmpty})
 
+    ### olo_ft_fifo_async ###
+    tb = olo_tb.test_bench('olo_ft_fifo_async_tb')
+    for Width in Widths:
+        named_config(tb, {'Width_g': Width})
+    for Opt in ['SPEED', 'LATENCY']:
+        named_config(tb, {'Optimization_g': Opt})
+
     ### olo_ft_fifo_packet ###
     tb = olo_tb.test_bench('olo_ft_fifo_packet_tb')
     for Width in Widths:
