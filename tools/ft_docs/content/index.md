@@ -1,5 +1,7 @@
 # Open Logic FT
 
+[![TRL 3](assets/images/trl-3.svg)](https://openspacehdl.org/trl/)
+
 Open Logic FT is the fault-tolerant fork of [Open Logic](https://github.com/open-logic/open-logic), the VHDL standard
 library of FPGA building blocks. It adds the _ft_ area: building blocks for designs in radiation environments such as
 spacecraft, where single event upsets flip bits in RAM cells and registers. The RAMs and FIFOs of the area are protected
@@ -59,6 +61,17 @@ area and the minimal set of the other areas, VSG linting, markdownlint and the c
 the synthesis inference test. The tests of the TMR entities force upsets into the registers of single chains and check
 that the voted outputs are not affected. The tag `4.7.0-ft.1` passed the full regression of the library (7784 tests)
 with GHDL.
+
+## Technology readiness
+
+The ft entities are at **TRL 3**: fully verified by simulation (including the injected errors and upsets described
+above), not yet tested on hardware, no flight heritage. This also applies to the ft entities that are already part
+of Open Logic. The [TRL page](https://openspacehdl.org/trl/) explains what the levels mean for an IP core.
+
+| Next level | What is needed | State |
+| --- | --- | --- |
+| TRL 4 | The ft entities in operation in a hardware design (e.g. inside OpenWire or OpenFibre on an evaluation board); errors injected through the error injection inputs on hardware, scrubbers running; hardware test report | Open |
+| TRL 5 | Single-event effects test (beam test) on a radiation-tolerant FPGA that confirms the effectiveness of ECC, scrubbing and TMR and quantifies the error rates | Open |
 
 ## Used by
 
