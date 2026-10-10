@@ -48,6 +48,7 @@ src/base/vhdl/olo_base_crc_append.vhd
 src/base/vhdl/olo_base_cc_bits.vhd
 src/base/vhdl/olo_base_cc_reset.vhd
 src/base/vhdl/olo_base_fifo_async.vhd
+src/ft/vhdl/olo_ft_fifo_async.vhd
 src/base/vhdl/olo_base_cc_xn2n.vhd
 src/base/vhdl/olo_base_cc_n2xn.vhd
 src/base/vhdl/olo_base_cc_pulse.vhd

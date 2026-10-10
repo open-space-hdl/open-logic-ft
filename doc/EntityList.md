@@ -351,6 +351,7 @@ primitives have been introduced to the ft area.
 | Entity                                               | Description                                                  |
 | ---------------------------------------------------- | ------------------------------------------------------------ |
 | [olo_ft_fifo_sync](./ft/olo_ft_fifo_sync.md)         | ECC-protected synchronous FIFO (single clock)               |
+| [olo_ft_fifo_async](./ft/olo_ft_fifo_async.md)       | ECC-protected asynchronous FIFO (separate write and read clocks) |
 | [olo_ft_fifo_packet](./ft/olo_ft_fifo_packet.md)     | ECC-protected packet FIFO (store and forward) with the ability to drop packets on the write side and skip or repeat packets on the read side |
 
 ### Private Entities
