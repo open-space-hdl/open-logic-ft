@@ -117,6 +117,11 @@ architecture sim of olo_axi_master_simple_tb is
     signal Rd_Error     : std_logic;
     signal Rd_Last      : std_logic;
 
+    -- Read response at the DUT: the response of the slave, or SLVERR on beat RRespErrBeat of every read burst
+    signal RRespErrBeat : integer := -1;
+    signal RBeat        : natural := 0;
+    signal RResp        : std_logic_vector(1 downto 0);
+
     -----------------------------------------------------------------------------------------------
     -- TB Defnitions
     -----------------------------------------------------------------------------------------------
@@ -481,6 +486,29 @@ begin
                 end if;
             end if;
 
+            if run("BurstWrite-AllBurstsError") then
+                if ImplWrite_g then
+                    -- 2 words before boundary, 6 after, 8 total, SLVERR on both bursts
+                    -- Slave
+                    expect_aw(net, AxiSlave_c, X"6000"-2*AxiDataWidth_g/8, len => 2);
+                    expect_w(net, AxiSlave_c, X"12", beats => 2);
+                    push_b(net, AxiSlave_c, resp => AxiResp_SlvErr_c);
+                    expect_aw(net, AxiSlave_c, X"6000", len => 6);
+                    expect_w(net, AxiSlave_c, X"14", beats => 6);
+                    push_b(net, AxiSlave_c, resp => AxiResp_SlvErr_c);
+                    -- Master
+                    pushCommand(net, WrCmdMaster_c, X"6000"-2*AxiDataWidth_g/8, 8);
+                    pushWrData(net, X"12", 1, 8);
+                    -- Blocking
+                    expectWrResponse(RespError);
+                    -- The next write without error reports success
+                    expect_single_write (net, AxiSlave_c, X"0600", X"34");
+                    pushCommand(net, WrCmdMaster_c, X"0600", 1);
+                    pushWrData(net, X"34");
+                    expectWrResponse(RespSuccess);
+                end if;
+            end if;
+
             -- *** Burst Reads ***
             if run("BurstRead") then
                 if ImplRead_g then
@@ -526,6 +554,42 @@ begin
                     expectRdData(net, X"12", 1, 8);
                     -- Blocking
                     expectRdResponse(RespError);
+                end if;
+            end if;
+
+            if run("BurstRead-MidBurstError") then
+                if ImplRead_g then
+                    -- One burst of 4 beats, SLVERR on the second beat only
+                    RRespErrBeat <= 1;
+                    -- Slave
+                    push_burst_read_aligned (net, AxiSlave_c, X"0400", X"20", 1, 4);
+                    -- Master
+                    pushCommand(net, RdCmdMaster_c, X"0400", 4);
+                    expectRdData(net, X"20", 1, 4);
+                    -- Blocking
+                    expectRdResponse(RespError);
+                    RRespErrBeat <= -1;
+                end if;
+            end if;
+
+            if run("BurstRead-AllBurstsError") then
+                if ImplRead_g then
+                    -- 2 words before boundary, 6 after, 8 total, SLVERR on both bursts
+                    -- Slave
+                    expect_ar(net, AxiSlave_c, X"5000"-2*AxiDataWidth_g/8, len => 2);
+                    push_r(net, AxiSlave_c, X"12", beats => 2, resp => AxiResp_SlvErr_c);
+                    expect_ar(net, AxiSlave_c, X"5000", len => 6);
+                    push_r(net, AxiSlave_c, X"14", beats => 6, resp => AxiResp_SlvErr_c);
+                    -- Master
+                    pushCommand(net, RdCmdMaster_c, X"5000"-2*AxiDataWidth_g/8, 8);
+                    expectRdData(net, X"12", 1, 8);
+                    -- Blocking
+                    expectRdResponse(RespError);
+                    -- The next read without error reports success
+                    push_single_read (net, AxiSlave_c, X"0500", X"34");
+                    pushCommand(net, RdCmdMaster_c, X"0500", 1);
+                    expectRdData(net, X"34");
+                    expectRdResponse(RespSuccess);
                 end if;
             end if;
 
@@ -713,9 +777,27 @@ begin
             M_Axi_RData    => AxiSm.r_data,
             M_Axi_RValid   => AxiSm.r_valid,
             M_Axi_RReady   => AxiMs.r_ready,
-            M_Axi_RResp    => AxiSm.r_resp,
+            M_Axi_RResp    => RResp,
             M_Axi_RLast    => AxiSm.r_last
         );
+
+    -----------------------------------------------------------------------------------------------
+    -- Read Response Injection
+    -----------------------------------------------------------------------------------------------
+    p_rbeat : process (Clk) is
+    begin
+        if rising_edge(Clk) then
+            if (AxiSm.r_valid = '1') and (AxiMs.r_ready = '1') then
+                if AxiSm.r_last = '1' then
+                    RBeat <= 0;
+                else
+                    RBeat <= RBeat + 1;
+                end if;
+            end if;
+        end if;
+    end process;
+
+    RResp <= AxiResp_SlvErr_c when RBeat = RRespErrBeat else AxiSm.r_resp;
 
     -----------------------------------------------------------------------------------------------
     -- Verification Components
