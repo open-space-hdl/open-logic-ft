@@ -143,10 +143,16 @@ The synchronizers of the Gray-pointer and reset clock crossings are excluded fro
 [clock-crossing principles](../base/clock_crossing_principles.md#radiation-hardening). A single-event upset of a
 pointer synchronizer register therefore shows a wrong pointer value on the other side of the FIFO for one clock
 cycle. Because of the Gray-to-binary conversion, the wrong value can differ from the correct one by more than one
-entry. If the other side reads or writes in exactly this cycle, it can read entries that were not written yet or
-overwrite entries that were not read yet, and the FIFO state stays wrong until the next reset. An upset of a reset
-synchronizer register leads to a spurious reset of both sides. Take this into account in the radiation analysis
-of the design.
+entry. This only matters if the FIFO is empty (pointer seen by the read side) or full (pointer seen by the write
+side) in exactly this cycle and data is transferred: then an entry that was not written yet is read, or an entry
+that was not read yet is overwritten. Afterwards, the FIFO delivers invalid data until the read pointer has caught
+up with the write pointer again (at most 2 x _Depth_g_ - 1 reads) or until the next reset. Right after such an
+event, _In_Level_ and _Out_Level_ are larger than _Depth_g_, which the surrounding design can check to detect it.
+
+An upset of a reset synchronizer register leads to a reset pulse on one side of the FIFO only (visible on
+_In_RstOut_ or _Out_RstOut_), after which the FIFO also delivers invalid data until the pointers are aligned again.
+
+Take this into account in the radiation analysis of the design.
 
 ### ECC Overhead, Error Injection and Status Flags
 
