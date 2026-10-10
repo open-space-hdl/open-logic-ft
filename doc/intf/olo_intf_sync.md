@@ -61,3 +61,6 @@ required to increase MTBF.
 
 The VHDL code contains all synthesis attributes required to ensure correct behavior of tools (e.g. avoid mapping of the
 synchronizer FFs into shift registers) for all supported tools.
+
+The synchronizer FFs are excluded from automatic TMR, see
+[clock crossing principles](../base/clock_crossing_principles.md#radiation-hardening).

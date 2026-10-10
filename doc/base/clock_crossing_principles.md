@@ -52,6 +52,23 @@ Any logic that must be reset when the clock crossing is reset shall be connected
 
 ![Reset CC](./clock_crossings/reset_cc.png)
 
+## Radiation Hardening
+
+Designs for radiation environments often triplicate all registers automatically, e.g. with the Synplify attribute
+`syn_radhardlevel = "tmr"` for Microchip devices. Voters between the stages of a synchronizer would add delay to the
+path that determines the metastability MTBF. Therefore the synchronizer registers of all _Open Logic_ clock crossings
+are excluded from automatic TMR (`syn_radhardlevel = "none"`): the tool triplicates the registers around the
+synchronizers but not the synchronizers themselves. This concerns the synchronizers of
+[olo_base_cc_bits](./olo_base_cc_bits.md), [olo_base_cc_reset](./olo_base_cc_reset.md),
+[olo_base_reset_gen](./olo_base_reset_gen.md) and [olo_intf_sync](../intf/olo_intf_sync.md), and thus all clock
+crossings built on them. Other tools ignore the attribute.
+
+As a consequence, a single-event upset of a synchronizer register is not masked: the receiving side sees a wrong value
+for one clock cycle. Depending on the clock crossing, this can lead to a wrong level for one cycle, a spurious or lost
+pulse or transfer (toggle-based crossings such as [olo_base_cc_pulse](./olo_base_cc_pulse.md)), a wrong pointer value
+for one cycle ([olo_base_fifo_async](./olo_base_fifo_async.md)) or a spurious reset. Take this into account in the
+radiation analysis of the design.
+
 ## Selection Table
 
 Every clock crossing has certain pros and cons. The table below aims to summarize them

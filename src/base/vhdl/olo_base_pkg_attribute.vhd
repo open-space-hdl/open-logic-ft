@@ -118,6 +118,13 @@ package olo_base_pkg_attribute is
     attribute syn_ramstyle : string;
     attribute syn_romstyle : string;
 
+    -- *** Exclude Registers from automatic TMR (Triple Modular Redundancy) ***
+    -- Used for synchronizer registers: voters between the stages of a synchronizer reduce the metastability MTBF.
+    -- Tools:
+    -- - Synplify (Microchip)
+    attribute syn_radhardlevel : string;
+    constant SynRadhardlevel_None_c : string := "none";
+
 end package;
 
 ---------------------------------------------------------------------------------------------------
