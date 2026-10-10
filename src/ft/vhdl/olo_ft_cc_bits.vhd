@@ -58,20 +58,12 @@ architecture struct of olo_ft_cc_bits is
     -----------------------------------------------------------------------------------------------
     -- Types
     -----------------------------------------------------------------------------------------------
-    type SyncStages_t is array (0 to SyncStages_g - 2) of std_logic_vector(Width_g - 1 downto 0);
-
     -- One entry per TMR copy (0 = A, 1 = B, 2 = C)
-    type Tmr_t       is array (0 to 2) of std_logic_vector(Width_g - 1 downto 0);
-    type TmrStages_t is array (0 to 2) of SyncStages_t;
+    type Tmr_t is array (0 to 2) of std_logic_vector(Width_g - 1 downto 0);
 
     -----------------------------------------------------------------------------------------------
     -- Signals
     -----------------------------------------------------------------------------------------------
-    -- Triplicated synchronizer registers
-    signal RegIn : Tmr_t       := (others => (others => '0'));
-    signal Reg0  : Tmr_t       := (others => (others => '0'));
-    signal RegN  : TmrStages_t := (others => (others => (others => '0')));
-
     -- Per-copy synchronizer output (= last sync stage of each chain)
     signal RcvSig : Tmr_t;
 
@@ -81,46 +73,9 @@ architecture struct of olo_ft_cc_bits is
     -----------------------------------------------------------------------------------------------
     -- Architecture-level attribute: disable vendor-provided TMR insertion.
     -- Manual TMR is already in place below. Without this attribute, tools like Synplify for
-    -- Microchip Libero would triplicate the already-triplicated registers.
+    -- Microchip Libero would apply their own TMR on top of the triplicated registers.
     -----------------------------------------------------------------------------------------------
     attribute syn_radhardlevel of struct : architecture is SynRadhardlevel_None_c;
-
-    -----------------------------------------------------------------------------------------------
-    -- Synthesis attributes - shiftregister extraction (prevent SRL inference)
-    -----------------------------------------------------------------------------------------------
-    attribute shreg_extract of Reg0  : signal is ShregExtract_SuppressExtraction_c;
-    attribute shreg_extract of RegN  : signal is ShregExtract_SuppressExtraction_c;
-    attribute shreg_extract of RegIn : signal is ShregExtract_SuppressExtraction_c;
-
-    attribute syn_srlstyle of Reg0  : signal is SynSrlstyle_FlipFlops_c;
-    attribute syn_srlstyle of RegN  : signal is SynSrlstyle_FlipFlops_c;
-    attribute syn_srlstyle of RegIn : signal is SynSrlstyle_FlipFlops_c;
-
-    -----------------------------------------------------------------------------------------------
-    -- Synthesis attributes - preserve registers (prevent merging of TMR copies)
-    -----------------------------------------------------------------------------------------------
-    attribute dont_merge of Reg0  : signal is DontMerge_SuppressChanges_c;
-    attribute dont_merge of RegN  : signal is DontMerge_SuppressChanges_c;
-    attribute dont_merge of RegIn : signal is DontMerge_SuppressChanges_c;
-
-    attribute preserve of Reg0  : signal is Preserve_SuppressChanges_c;
-    attribute preserve of RegN  : signal is Preserve_SuppressChanges_c;
-    attribute preserve of RegIn : signal is Preserve_SuppressChanges_c;
-
-    attribute syn_preserve of Reg0  : signal is SynPreserve_SuppressChanges_c;
-    attribute syn_preserve of RegN  : signal is SynPreserve_SuppressChanges_c;
-    attribute syn_preserve of RegIn : signal is SynPreserve_SuppressChanges_c;
-
-    attribute syn_keep of Reg0  : signal is SynKeep_SuppressChanges_c;
-    attribute syn_keep of RegN  : signal is SynKeep_SuppressChanges_c;
-    attribute syn_keep of RegIn : signal is SynKeep_SuppressChanges_c;
-
-    -----------------------------------------------------------------------------------------------
-    -- Synthesis attributes - async registers (metastability handling on first two sync FFs)
-    -----------------------------------------------------------------------------------------------
-    attribute async_reg of Reg0  : signal is AsyncReg_TreatAsync_c;
-    attribute async_reg of RegN  : signal is AsyncReg_TreatAsync_c;
-    attribute async_reg of RegIn : signal is AsyncReg_TreatAsync_c;
 
     -----------------------------------------------------------------------------------------------
     -- Synthesis attributes automatic constraining (AMD only)
@@ -133,55 +88,86 @@ begin
     In_Clk_Sig <= In_Clk;
 
     -----------------------------------------------------------------------------------------------
-    -- Input registers (triplicated) in the sender's domain
+    -- Three independent synchronizer chains (structure of olo_base_cc_bits)
     -----------------------------------------------------------------------------------------------
-    p_inff : process (In_Clk) is
+    g_copy : for i in 0 to 2 generate
+
+        type SyncStages_t is array (0 to SyncStages_g - 2) of std_logic_vector(Width_g - 1 downto 0);
+
+        -- Synchronizer registers of this copy
+        signal RegIn : std_logic_vector(Width_g - 1 downto 0) := (others => '0');
+        signal Reg0  : std_logic_vector(Width_g - 1 downto 0) := (others => '0');
+        signal RegN  : SyncStages_t                           := (others => (others => '0'));
+
+        -- Synthesis attributes - shiftregister extraction (prevent SRL inference)
+        attribute shreg_extract of Reg0  : signal is ShregExtract_SuppressExtraction_c;
+        attribute shreg_extract of RegN  : signal is ShregExtract_SuppressExtraction_c;
+        attribute shreg_extract of RegIn : signal is ShregExtract_SuppressExtraction_c;
+
+        attribute syn_srlstyle of Reg0  : signal is SynSrlstyle_FlipFlops_c;
+        attribute syn_srlstyle of RegN  : signal is SynSrlstyle_FlipFlops_c;
+        attribute syn_srlstyle of RegIn : signal is SynSrlstyle_FlipFlops_c;
+
+        -- Synthesis attributes - preserve registers (prevent merging of TMR copies)
+        attribute dont_merge of Reg0  : signal is DontMerge_SuppressChanges_c;
+        attribute dont_merge of RegN  : signal is DontMerge_SuppressChanges_c;
+        attribute dont_merge of RegIn : signal is DontMerge_SuppressChanges_c;
+
+        attribute preserve of Reg0  : signal is Preserve_SuppressChanges_c;
+        attribute preserve of RegN  : signal is Preserve_SuppressChanges_c;
+        attribute preserve of RegIn : signal is Preserve_SuppressChanges_c;
+
+        attribute syn_preserve of Reg0  : signal is SynPreserve_SuppressChanges_c;
+        attribute syn_preserve of RegN  : signal is SynPreserve_SuppressChanges_c;
+        attribute syn_preserve of RegIn : signal is SynPreserve_SuppressChanges_c;
+
+        attribute syn_keep of Reg0  : signal is SynKeep_SuppressChanges_c;
+        attribute syn_keep of RegN  : signal is SynKeep_SuppressChanges_c;
+        attribute syn_keep of RegIn : signal is SynKeep_SuppressChanges_c;
+
+        -- Synthesis attributes - async registers (metastability handling)
+        attribute async_reg of Reg0  : signal is AsyncReg_TreatAsync_c;
+        attribute async_reg of RegN  : signal is AsyncReg_TreatAsync_c;
+        attribute async_reg of RegIn : signal is AsyncReg_TreatAsync_c;
+
     begin
-        if rising_edge(In_Clk) then
 
-            for i in 0 to 2 loop
-                RegIn(i) <= In_Data;
-            end loop;
-
-            if In_Rst = '1' then
-                RegIn <= (others => (others => '0'));
+        -- Input register in the sender's domain
+        p_inff : process (In_Clk) is
+        begin
+            if rising_edge(In_Clk) then
+                RegIn <= In_Data;
+                if In_Rst = '1' then
+                    RegIn <= (others => '0');
+                end if;
             end if;
-        end if;
-    end process;
+        end process;
 
-    -----------------------------------------------------------------------------------------------
-    -- Synchronizer chains (triplicated) in the receiver's domain
-    -----------------------------------------------------------------------------------------------
-    p_outff : process (Out_Clk) is
-    begin
-        if rising_edge(Out_Clk) then
-
-            for i in 0 to 2 loop
+        -- Synchronizer chain in the receiver's domain
+        p_outff : process (Out_Clk) is
+        begin
+            if rising_edge(Out_Clk) then
                 -- First two stages
-                Reg0(i)    <= RegIn(i);
-                RegN(i)(0) <= Reg0(i);
+                Reg0    <= RegIn;
+                RegN(0) <= Reg0;
 
-                -- Remaining stages (loop only active when SyncStages_g > 2)
-                for s in 1 to SyncStages_g - 2 loop
-                    RegN(i)(s) <= RegN(i)(s - 1);
+                -- Remaining stages
+                for s in 1 to RegN'high loop
+                    RegN(s) <= RegN(s - 1);
                 end loop;
 
-            end loop;
-
-            -- Reset
-            if Out_Rst = '1' then
-                Reg0 <= (others => (others => '0'));
-                RegN <= (others => (others => (others => '0')));
+                -- Reset
+                if Out_Rst = '1' then
+                    Reg0 <= (others => '0');
+                    RegN <= (others => (others => '0'));
+                end if;
             end if;
-        end if;
-    end process;
+        end process;
 
-    -----------------------------------------------------------------------------------------------
-    -- Per-copy synchronizer output (= last sync stage in each chain)
-    -----------------------------------------------------------------------------------------------
-    RcvSig(0) <= RegN(0)(SyncStages_g - 2);
-    RcvSig(1) <= RegN(1)(SyncStages_g - 2);
-    RcvSig(2) <= RegN(2)(SyncStages_g - 2);
+        -- Synchronizer output of this copy (= last sync stage)
+        RcvSig(i) <= RegN(RegN'high);
+
+    end generate;
 
     -----------------------------------------------------------------------------------------------
     -- Per-bit majority voter: Out[i] = (A*B) + (B*C) + (A*C)
