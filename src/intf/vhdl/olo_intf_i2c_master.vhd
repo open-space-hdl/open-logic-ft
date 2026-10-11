@@ -60,12 +60,14 @@ library work;
 entity olo_intf_i2c_master is
     generic (
         ClkFrequency_g      : real;
-        I2cFrequency_g      : real    := 100.0e3;
-        ClkDivBits_g        : natural := 0;
-        BusBusyTimeout_g    : real    := 1.0e-3;
-        CmdTimeout_g        : real    := 1.0e-3;
-        InternalTriState_g  : boolean := true;
-        DisableAsserts_g    : boolean := false
+        I2cFrequency_g      : real                  := 100.0e3;
+        ClkDivBits_g        : natural               := 0;
+        BusBusyTimeout_g    : real                  := 1.0e-3;
+        CmdTimeout_g        : real                  := 1.0e-3;
+        InternalTriState_g  : boolean               := true;
+        DisableAsserts_g    : boolean               := false;
+        SyncStages_g        : positive range 2 to 4 := 2;
+        SyncTmr_g           : boolean               := false
     );
     port (
         -- Control Signals
@@ -634,7 +636,9 @@ begin
 
     i_sync : entity work.olo_intf_sync
         generic map (
-            Width_g     => 2
+            Width_g      => 2,
+            SyncStages_g => SyncStages_g,
+            SyncTmr_g    => SyncTmr_g
         )
         port map (
             Clk             => Clk,

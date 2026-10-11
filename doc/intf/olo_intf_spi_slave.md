@@ -38,6 +38,7 @@ The all SPI signals are properly synchronized to _Clk_ using [olo_intf_sync](./o
 _olo_intf_spi_slave_.
 
 The maximum supported _Spi_Sclk_ frequency is 10x less than the _Clk_ frequency (with some tricks up to 8x less).
+These ratios apply to _SyncStages_g_ = 2. Every additional synchronization stage raises both of them by two.
 
 ## Generics
 
@@ -49,6 +50,8 @@ The maximum supported _Spi_Sclk_ frequency is 10x less than the _Clk_ frequency 
 | LsbFirst_g                | boolean  | false   | **True**: Transactions are LSB first (data bit 0 is sent first).<br />**False**: Transactions are MSB first (data bit 0 is sent last) |
 | ConsecutiveTransactions_g | boolean  | false   | **True**: Multiple transactions without _CS_n_ going high are supported<br />**False**: _CS_n_ must go high between transactions<br />Only enable when required - see [Details](#details) for more information. |
 | InternalTriState_g        | boolean  | true    | **True** = Use internal tri-state buffer (_Spi_Miso_ is used). <br />**False** = Use external tri-state buffer (_Spi_Miso_t_ and _Spi_Miso_o_) are used). |
+| SyncStages_g              | positive | 2       | Number of synchronization stages for the SPI inputs. Each additional stage adds one clock cycle to the propagation delays, see [Timing Considerations](#timing-considerations). <br />Range: 2 ... 4 |
+| SyncTmr_g                 | boolean  | false   | Implement every synchronizer as three chains with a majority voter, see [clock-crossing principles](../base/clock_crossing_principles.md#triplicated-synchronizers) |
 
 ## Interfaces
 
@@ -56,7 +59,7 @@ The maximum supported _Spi_Sclk_ frequency is 10x less than the _Clk_ frequency 
 
 | Name | In/Out | Length | Default | Description                                                  |
 | :--- | :----- | :----- | ------- | :----------------------------------------------------------- |
-| Clk  | in     | 1      | -       | Clock - Frequency must e at least **10x higher than _Spi_Sclk_ frequecy**<br />For higher SCLK frequencies refer to [Achieving High SCLK Frequencies](#achieving-high-sclk-frequencies) |
+| Clk  | in     | 1      | -       | Clock - Frequency must e at least **10x higher than _Spi_Sclk_ frequecy** (plus 2x per synchronization stage above two)<br />For higher SCLK frequencies refer to [Achieving High SCLK Frequencies](#achieving-high-sclk-frequencies) |
 | Rst  | in     | 1      | -       | Reset input (high-active, synchronous to _Clk_)              |
 
 ### RX Data Interface
@@ -102,7 +105,7 @@ and _Resp_CleanEnd_ as single cycle pulses and ignore _Resp_Valid_.
 | Name       | In/Out | Length | Default | Description                                                  |
 | :--------- | :----- | :----- | ------- | :----------------------------------------------------------- |
 | Spi_Cs_n   | in     | 1      | N/A     | SPI chip select (low-active).                                |
-| Spi_Sclk   | in     | 1      | N/A     | SPI clock.<br />Frequency must be at least **10x lower than _Clk_ frequency**.<br />For higher SCLK frequencies refer to [Achieving High SCLK Frequencies](#achieving-high-sclk-frequencies) |
+| Spi_Sclk   | in     | 1      | N/A     | SPI clock.<br />Frequency must be at least **10x lower than _Clk_ frequency** (plus 2x per synchronization stage above two).<br />For higher SCLK frequencies refer to [Achieving High SCLK Frequencies](#achieving-high-sclk-frequencies) |
 | Spi_Mosi   | in     | 1      | '0'     | SPI data from master to slave.<br />Can be left unconnected if only the slave does send data. |
 | Spi_Miso   | out    | 1      | N/A     | Used only if **InternalTriState_g = true**<br />SPI data from slave to master. <br />Can be left unconnected if the only the master does send data. |
 | Spi_Miso_t | out    | 1      | N/A     | Used only if **InternalTriState_g = false**<br />_Spi_Miso_ Tri-State signal ('1' = tristated, '0' drive)<br />Can be left unconnected if the only the master does send data. |
@@ -126,9 +129,9 @@ it is the opposite way.
 
 The implementation in _olo_intf_spi_slave_ is slightly different. Data is sampled and applied on the same edge. Reason
 for this implementation is that the propagation delay from an incoming _Spi_Sclk_ edge until the _Spi_Miso_ data is
-updated is relatively long (4 clock cycles). As a result _Spi_Miso_ hold-time is uncritical - and in contrast _Spi_Miso_
-setup time is critical. To maximize the allowed _Spi_Sclk_ frequency, it is optimal to apply _Spi_Miso_ output data as
-soon as possible (4 clock cycles after) the _Spi_Sclk_ sampling edge.
+updated is relatively long (_SyncStages_g_ + 2 clock cycles). As a result _Spi_Miso_ hold-time is uncritical - and in
+contrast _Spi_Miso_ setup time is critical. To maximize the allowed _Spi_Sclk_ frequency, it is optimal to apply
+_Spi_Miso_ output data as soon as possible (_SyncStages_g_ + 2 clock cycles after) the _Spi_Sclk_ sampling edge.
 
 <p align="center"><img src="spi/spi_slave_timing_margin1.png" alt="spi-slave-timing-margin"> </p>
 <p align="center"> Meaning of LsbFirst_g </p>
@@ -214,22 +217,25 @@ pulls _Spi_Cs_n_ high - which leads to a _Resp_Aborted_='1' response.
 
 #### Spi_Cs_n to Spi_Miso Propagation Delay
 
-The propagation delay from _Spi_Cs_n_ falling-edge to the application of the first data-bit on _Spi_Miso_ is four clock
-cycles:
+The propagation delay from _Spi_Cs_n_ falling-edge to the application of the first data-bit on _Spi_Miso_ is
+_SyncStages_g_ + 2 clock cycles:
 
-- Two clock cycles for synchronization for _Spi_Cs_n_ (double stage synchronizer)
+- _SyncStages_g_ clock cycles for synchronization for _Spi_Cs_n_
 - One clock cycle for the edge detection
 - One clock cycle for setting *_pi_Miso_
 
-As a result **the master must be configured to ensure a at least 5 _Clk_ periods of time between the falling edge of
-_Spi_Cs_n_ and the first sampling edge of _Spi_Sclk_**. For _SpiCPH_g=1_ this normally is the case anyways. For
-_SpiCPH_g=0_ it might require special attention.
+As a result **the master must be configured to ensure a at least _SyncStages_g_ + 3 _Clk_ periods of time between the
+falling edge of _Spi_Cs_n_ and the first sampling edge of _Spi_Sclk_**. For _SpiCPH_g=1_ this normally is the case
+anyways. For _SpiCPH_g=0_ it might require special attention.
+
+In the same way, _Spi_Miso_ is tri-stated at most _SyncStages_g_ + 2 clock cycles after the rising edge of
+_Spi_Cs_n_.
 
 #### Spi_Sclk to Spi_Miso Propagation Delay
 
-The propagation delay from _Spi_Sclk_ edges to the application of _Spi_Miso_ data four clock cycles:
+The propagation delay from _Spi_Sclk_ edges to the application of _Spi_Miso_ data _SyncStages_g_ + 2 clock cycles:
 
-- Two clock cycles for synchronization for _Spi_Sclk_ (double stage synchronizer)
+- _SyncStages_g_ clock cycles for synchronization for _Spi_Sclk_
 - One clock cycle for the edge detection
 - One clock cycle for setting _Spi_Miso_
 
@@ -240,6 +246,9 @@ the normal AXI4-Stream handshaking.
 
 For _Spi_Sclk_ frequencies between 1/8 and 1/10 of the _Clk_ frequency, ensure that _Tx_Valid_ goes high not more than
 two clock cycles after _Tx_Ready_ is asserted. This limitation applies even if _Tx_Ready_ stays high for longer.
+
+The frequency limits apply to _SyncStages_g_ = 2. For more synchronization stages, replace 8 and 10 by
+8 + 2 x (_SyncStages_g_ - 2) and 10 + 2 x (_SyncStages_g_ - 2).
 
 For high _Spi_Sclk_ frequencies, the _Spi_Miso_ line is timing critical regarding routing.
 

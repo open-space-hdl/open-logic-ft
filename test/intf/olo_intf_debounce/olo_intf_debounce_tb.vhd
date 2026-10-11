@@ -26,9 +26,11 @@ library olo;
 -- vunit: run_all_in_same_sim
 entity olo_intf_debounce_tb is
     generic (
-        IdleLevel_g         : integer range 0 to 1 := 0;
-        DebounceCycles_g    : integer              := 200;
-        Mode_g              : string               := "LOW_LATENCY";
+        IdleLevel_g         : integer range 0 to 1  := 0;
+        DebounceCycles_g    : integer               := 200;
+        Mode_g              : string                := "LOW_LATENCY";
+        SyncStages_g        : positive range 2 to 4 := 2;
+        SyncTmr_g           : boolean               := false;
         runner_cfg          : string
     );
 end entity;
@@ -48,7 +50,7 @@ architecture sim of olo_intf_debounce_tb is
     constant Clk_Period_c    : time      := (1 sec) / Clk_Frequency_c;
     constant Time_Debounce_c : time      := Clk_Period_c*DebounceCycles_g;
     constant IsLowLat_c      : boolean   := (Mode_g = "LOW_LATENCY");
-    constant MaxPropDelay_c  : time      := 5*Clk_Period_c;
+    constant MaxPropDelay_c  : time      := (SyncStages_g + 3)*Clk_Period_c;
     constant MaxDetTime_c    : time      := Time_Debounce_c*1.1+MaxPropDelay_c;
 
     signal BounceOhter : boolean := false;
@@ -72,7 +74,9 @@ begin
             DebounceTime_g  => (1.0/Clk_Frequency_c)*real(DebounceCycles_g),
             Width_g         => DataWidth_c,
             IdleLevel_g     => IdleLevel_c,
-            Mode_g          => Mode_g
+            Mode_g          => Mode_g,
+            SyncStages_g    => SyncStages_g,
+            SyncTmr_g       => SyncTmr_g
         )
         port map (
             Clk         => Clk,

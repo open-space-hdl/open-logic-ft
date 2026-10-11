@@ -27,7 +27,9 @@ library olo;
 entity olo_base_cc_xn2n_tb is
     generic (
         runner_cfg      : string;
-        ClockRatio_g    : integer := 3
+        ClockRatio_g    : integer               := 3;
+        SyncStages_g    : positive range 2 to 4 := 2;
+        SyncTmr_g       : boolean               := false
     );
 end entity;
 
@@ -184,7 +186,9 @@ begin
     -----------------------------------------------------------------------------------------------
     i_dut : entity olo.olo_base_cc_xn2n
         generic map (
-            Width_g       => DataWidth_c
+            Width_g       => DataWidth_c,
+            SyncStages_g  => SyncStages_g,
+            SyncTmr_g     => SyncTmr_g
         )
         port map (
             In_Clk      => In_Clk,

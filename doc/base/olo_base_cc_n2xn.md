@@ -30,6 +30,8 @@ information.
 | Name    | Type     | Default | Description         |
 | :------ | :------- | ------- | :------------------ |
 | Width_g | positive | 8       | Data width in bits. |
+| SyncStages_g | positive | 2       | Number of synchronization stages of the reset crossing. <br />Range: 2 ... 4 |
+| SyncTmr_g | boolean  | false   | Implement every synchronizer as three chains with a majority voter, see [clock-crossing principles](clock_crossing_principles.md#triplicated-synchronizers) |
 
 ## Interfaces
 

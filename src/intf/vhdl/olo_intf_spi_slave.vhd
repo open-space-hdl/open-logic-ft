@@ -30,12 +30,14 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity olo_intf_spi_slave is
     generic (
-        TransWidth_g                : positive             := 32;
-        SpiCpol_g                   : natural range 0 to 1 := 0;
-        SpiCpha_g                   : natural range 0 to 1 := 0;
-        LsbFirst_g                  : boolean              := false;
-        ConsecutiveTransactions_g   : boolean              := false;
-        InternalTriState_g          : boolean              := true
+        TransWidth_g                : positive              := 32;
+        SpiCpol_g                   : natural range 0 to 1  := 0;
+        SpiCpha_g                   : natural range 0 to 1  := 0;
+        LsbFirst_g                  : boolean               := false;
+        ConsecutiveTransactions_g   : boolean               := false;
+        InternalTriState_g          : boolean               := true;
+        SyncStages_g                : positive range 2 to 4 := 2;
+        SyncTmr_g                   : boolean               := false
     );
     port (
         -- Control Signals
@@ -328,8 +330,10 @@ begin
         -- Instance
         i_sync : entity work.olo_intf_sync
             generic map (
-                Width_g     => 3,
-                RstLevel_g  => '1'
+                Width_g      => 3,
+                RstLevel_g   => '1',
+                SyncStages_g => SyncStages_g,
+                SyncTmr_g    => SyncTmr_g
             )
             port map (
                 Clk         => Clk,

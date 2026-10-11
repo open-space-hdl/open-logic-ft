@@ -28,10 +28,12 @@ library olo;
 -- vunit: run_all_in_same_sim
 entity olo_intf_uart_tb is
     generic (
-        BaudRate_g                  : integer := 2_000_000; -- default is fast for short sim-times
-        DataBits_g                  : integer := 8;
-        StopBits_g                  : string  := "1";
-        Parity_g                    : string  := "odd";
+        BaudRate_g                  : integer               := 2_000_000; -- default is fast for short sim-times
+        DataBits_g                  : integer               := 8;
+        StopBits_g                  : string                := "1";
+        Parity_g                    : string                := "odd";
+        SyncStages_g                : positive range 2 to 4 := 2;
+        SyncTmr_g                   : boolean               := false;
         runner_cfg                  : string
     );
 end entity;
@@ -257,7 +259,9 @@ begin
             BaudRate_g      => real(BaudRate_g),
             DataBits_g      => DataBits_g,
             StopBits_g      => StopBits_g,
-            Parity_g        => Parity_g
+            Parity_g        => Parity_g,
+            SyncStages_g    => SyncStages_g,
+            SyncTmr_g       => SyncTmr_g
         )
         port map (
             Clk             => Clk,

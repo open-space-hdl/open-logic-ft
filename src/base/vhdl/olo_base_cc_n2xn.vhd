@@ -30,7 +30,9 @@ library ieee;
 ---------------------------------------------------------------------------------------------------
 entity olo_base_cc_n2xn is
     generic (
-        Width_g       : positive := 8
+        Width_g       : positive              := 8;
+        SyncStages_g  : positive range 2 to 4 := 2;
+        SyncTmr_g     : boolean               := false
     );
     port (
         In_Clk      : in    std_logic;
@@ -108,6 +110,10 @@ begin
 
     -- *** Reset Crossing ***
     i_rst_cc : entity work.olo_base_cc_reset
+        generic map (
+            SyncStages_g => SyncStages_g,
+            SyncTmr_g    => SyncTmr_g
+        )
         port map (
             A_Clk       => In_Clk,
             A_RstIn     => In_RstIn,

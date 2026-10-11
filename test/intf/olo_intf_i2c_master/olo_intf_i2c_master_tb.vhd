@@ -34,10 +34,12 @@ library work;
 -- vunit: run_all_in_same_sim
 entity olo_intf_i2c_master_tb is
     generic (
-        BusFrequency_g              : integer := 100_000;
-        ClkDiv_g                    : integer := 1;
-        ClkDivBits_g                : integer := 0;
-        InternalTriState_g          : boolean := true;
+        BusFrequency_g              : integer               := 100_000;
+        ClkDiv_g                    : integer               := 1;
+        ClkDivBits_g                : integer               := 0;
+        InternalTriState_g          : boolean               := true;
+        SyncStages_g                : positive range 2 to 4 := 2;
+        SyncTmr_g                   : boolean               := false;
         runner_cfg                  : string
     );
 end entity;
@@ -687,7 +689,9 @@ begin
                 BusBusyTimeout_g    => BusBusyTimeout_c,
                 CmdTimeout_g        => CmdTimeout_c,
                 InternalTriState_g  => InternalTriState_g,
-                DisableAsserts_g    => true
+                DisableAsserts_g    => true,
+                SyncStages_g        => SyncStages_g,
+                SyncTmr_g           => SyncTmr_g
             )
             port map (
                 -- Control Signals
@@ -727,7 +731,9 @@ begin
                 BusBusyTimeout_g    => BusBusyTimeout_c,
                 CmdTimeout_g        => CmdTimeout_c,
                 InternalTriState_g  => InternalTriState_g,
-                DisableAsserts_g    => true
+                DisableAsserts_g    => true,
+                SyncStages_g        => SyncStages_g,
+                SyncTmr_g           => SyncTmr_g
             )
             port map (
                 -- Control Signals

@@ -96,8 +96,15 @@ with a single synchronizer. The constraints (see [Constraining](#constraining)) 
 the period of the faster clock, which is what the two clock cycles are based on.
 
 - [olo_base_cc_simple](./olo_base_cc_simple.md), [olo_base_cc_status](./olo_base_cc_status.md),
-  [olo_base_cc_handshake](./olo_base_cc_handshake.md), [olo_base_cc_reset](./olo_base_cc_reset.md) and
-  [olo_base_reset_gen](./olo_base_reset_gen.md) fulfill this requirement by design.
+  [olo_base_cc_handshake](./olo_base_cc_handshake.md), [olo_base_cc_reset](./olo_base_cc_reset.md),
+  [olo_base_reset_gen](./olo_base_reset_gen.md), [olo_base_cc_n2xn](./olo_base_cc_n2xn.md),
+  [olo_base_cc_xn2n](./olo_base_cc_xn2n.md) and [olo_intf_clk_meas](../intf/olo_intf_clk_meas.md) fulfill this
+  requirement by design.
+- [olo_intf_i2c_master](../intf/olo_intf_i2c_master.md), [olo_intf_spi_slave](../intf/olo_intf_spi_slave.md) and
+  [olo_intf_uart](../intf/olo_intf_uart.md) fulfill it within their minimum ratio between the _Clk_ frequency and the
+  interface frequency, as long as the interface lines do not glitch.
+- For [olo_intf_debounce](../intf/olo_intf_debounce.md), an upset during a short level has the same effect as a bounce,
+  which the debouncing handles.
 - [olo_base_fifo_async](./olo_base_fifo_async.md) does not need it: the Gray-coded pointers change only one bit at a
   time, so every chain sees either the old or the new pointer value and the voted value is always one of the two.
 - [olo_base_cc_pulse](./olo_base_cc_pulse.md) fulfills it if the pulses are at least two clock cycles of the slower

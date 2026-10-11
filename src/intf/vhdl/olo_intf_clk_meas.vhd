@@ -33,7 +33,9 @@ library work;
 entity olo_intf_clk_meas is
     generic (
         ClkFrequency_g          : real;
-        MaxClkTestFrequency_g   : real := 1.0e9
+        MaxClkTestFrequency_g   : real                  := 1.0e9;
+        SyncStages_g            : positive range 2 to 4 := 2;
+        SyncTmr_g               : boolean               := false
     );
     port (
         -- Control Signals
@@ -163,6 +165,10 @@ begin
 
     -- Second pulse and reset CC
     i_sec_pulse_cc : entity work.olo_base_cc_pulse
+        generic map (
+            SyncStages_g => SyncStages_g,
+            SyncTmr_g    => SyncTmr_g
+        )
         port map (
             In_Clk        => Clk,
             In_RstIn      => Rst,
@@ -175,7 +181,9 @@ begin
     -- Result CC
     i_result_cc : entity work.olo_base_cc_simple
         generic map (
-            Width_g     => ResultWidth_c
+            Width_g      => ResultWidth_c,
+            SyncStages_g => SyncStages_g,
+            SyncTmr_g    => SyncTmr_g
         )
         port map (
             In_Clk      => ClkTest,
