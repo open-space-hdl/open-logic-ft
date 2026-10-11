@@ -51,6 +51,12 @@ def add_configs(olo_tb):
             named_config(tb, {'SyncStages_g': SyncStages, 'RstLevel_g': ResetLvel})
             named_config(tb, {'SyncStages_g': SyncStages, 'RstLevel_g': ResetLvel, 'SyncTmr_g': True})
 
+    ### olo_intf_sync SEU ###
+    # SEU testbenches are skipped for GHDL with the LLVM backend (see run.py)
+    for tb in olo_tb.get_test_benches('*olo_intf_sync_seu_tb', allow_empty=True):
+        for Tmr in [True, False]:
+            named_config(tb, {'SyncTmr_g': Tmr})
+
     ### olo_intf_clk_meas ###
     clk_meas_tb = 'olo_intf_clk_meas_tb'
     tb = olo_tb.test_bench(clk_meas_tb)
