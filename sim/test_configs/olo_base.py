@@ -36,6 +36,14 @@ def add_configs(olo_tb):
             named_config(tb, {'ClockRatio_N_g': N, 'ClockRatio_D_g': D, 'SyncTmr_g': True})
         named_config(tb, {'SyncStages_g': 4, 'SyncTmr_g': True})
 
+    ### olo_base_cc_bits / olo_base_cc_reset SEU ###
+    # SEU testbenches are skipped for GHDL with the LLVM backend (see run.py)
+    for tb_name in ['olo_base_cc_bits_seu_tb', 'olo_base_cc_reset_seu_tb']:
+        for tb in olo_tb.get_test_benches(f'*{tb_name}', allow_empty=True):
+            for N, D in [(1, 1), (3, 2), (2, 3), (1, 3), (3, 1)]:
+                named_config(tb, {'ClockRatio_N_g': N, 'ClockRatio_D_g': D})
+            named_config(tb, {'SyncTmr_g': False})
+
     ### olo_base_cc_handshake ###
     cc_handshake_tb = 'olo_base_cc_handshake_tb'
     tb = olo_tb.test_bench(cc_handshake_tb)
@@ -245,6 +253,13 @@ def add_configs(olo_tb):
     for Cycles in [3, 5]:
         for AsyncOutput in [True, False]:
             named_config(tb, {'RstPulseCycles_g': Cycles, 'AsyncResetOutput_g': AsyncOutput, 'SyncTmr_g': True})
+
+    ### olo_base_reset_gen SEU ###
+    # SEU testbenches are skipped for GHDL with the LLVM backend (see run.py)
+    for tb in olo_tb.get_test_benches('*olo_base_reset_gen_seu_tb', allow_empty=True):
+        for AsyncOutput in [True, False]:
+            for Tmr in [True, False]:
+                named_config(tb, {'AsyncResetOutput_g': AsyncOutput, 'SyncTmr_g': Tmr})
 
     ### olo_base_fifo_packet ###
     fifo_packet_tb = 'olo_base_fifo_packet_tb'

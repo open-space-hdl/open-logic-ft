@@ -124,6 +124,12 @@ olo_tb.add_source_files(files)
 
 # Add all tb VHDL files
 files = glob('../test/**/*.vhd', recursive=True)
+# The SEU testbenches force registers inside the DUT through VHDL-2008 external names, which GHDL with the LLVM
+# backend does not support. They are skipped for this backend.
+if os.environ.get('VUNIT_SIMULATOR') == 'ghdl':
+    from vunit.sim_if.ghdl import GHDLInterface
+    if GHDLInterface.determine_backend(GHDLInterface.find_prefix()) == 'llvm':
+        files = [f for f in files if not f.endswith('_seu_tb.vhd')]
 olo_tb.add_source_files(files)
 
 # Obviously flags must be set after files are imported
