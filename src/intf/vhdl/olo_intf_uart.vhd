@@ -36,7 +36,9 @@ entity olo_intf_uart is
         BaudRate_g      : real                  := 115.2e3;
         DataBits_g      : positive range 7 to 9 := 8;
         StopBits_g      : string                := "1";
-        Parity_g        : string                := "none"
+        Parity_g        : string                := "none";
+        SyncStages_g    : positive range 2 to 4 := 2;
+        SyncTmr_g       : boolean               := false
     );
     port (
         -- Control Signals
@@ -368,7 +370,9 @@ begin
 
     i_sync : entity work.olo_intf_sync
         generic map (
-            RstLevel_g => '1'
+            RstLevel_g   => '1',
+            SyncStages_g => SyncStages_g,
+            SyncTmr_g    => SyncTmr_g
         )
         port map (
             Clk             => Clk,

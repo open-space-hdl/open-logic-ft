@@ -25,8 +25,10 @@ library olo;
 entity olo_intf_clk_meas_tb is
     generic (
         runner_cfg              : string;
-        ClkFrequency_g          : integer := 1000;
-        MaxClkTestFrequency_g   : integer := 100
+        ClkFrequency_g          : integer               := 1000;
+        MaxClkTestFrequency_g   : integer               := 100;
+        SyncStages_g            : positive range 2 to 4 := 2;
+        SyncTmr_g               : boolean               := false
     );
 end entity;
 
@@ -87,7 +89,9 @@ begin
     i_dut : entity olo.olo_intf_clk_meas
         generic map (
             ClkFrequency_g          => ClkFrequencyReal_c,
-            MaxClkTestFrequency_g   => MaxClkTestFrequencyReal_c
+            MaxClkTestFrequency_g   => MaxClkTestFrequencyReal_c,
+            SyncStages_g            => SyncStages_g,
+            SyncTmr_g               => SyncTmr_g
         )
         port map (
             Clk         => Clk,

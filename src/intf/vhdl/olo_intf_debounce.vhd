@@ -34,10 +34,12 @@ library work;
 entity olo_intf_debounce is
     generic (
         ClkFrequency_g  : real;
-        DebounceTime_g  : real      := 20.0e-3;
-        Width_g         : positive  := 1;
-        IdleLevel_g     : std_logic := '0';
-        Mode_g          : string    := "LOW_LATENCY"    -- LOW_LATENCY or GLITCH_FILTER
+        DebounceTime_g  : real                  := 20.0e-3;
+        Width_g         : positive              := 1;
+        IdleLevel_g     : std_logic             := '0';
+        Mode_g          : string                := "LOW_LATENCY"; -- LOW_LATENCY or GLITCH_FILTER
+        SyncStages_g    : positive range 2 to 4 := 2;
+        SyncTmr_g       : boolean               := false
     );
     port (
         -- control signals
@@ -167,8 +169,10 @@ begin
     -- Synchronizer
     i_sync : entity work.olo_intf_sync
         generic map (
-            Width_g     => Width_g,
-            RstLevel_g  => IdleLevel_g
+            Width_g      => Width_g,
+            RstLevel_g   => IdleLevel_g,
+            SyncStages_g => SyncStages_g,
+            SyncTmr_g    => SyncTmr_g
         )
         port map (
             Clk         => Clk,
