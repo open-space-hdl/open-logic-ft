@@ -32,6 +32,7 @@ information.
 | Name         | Type     | Default | Description                                            |
 | :----------- | :------- | ------- | :----------------------------------------------------- |
 | SyncStages_g | positive | 2       | Number of synchronization stages. <br />Range: 2 ... 4 |
+| SyncTmr_g    | boolean  | false   | Implement every synchronizer as three chains with a majority voter, see [clock-crossing principles](clock_crossing_principles.md#triplicated-synchronizers) |
 
 ## Interfaces
 
@@ -73,6 +74,8 @@ The VHDL code contains all synthesis attributes required to ensure correct behav
 synchronizer FFs into shift registers) for all supported tools/vendors.
 
 The synchronizer FFs are excluded from automatic TMR, see
-[clock-crossing principles](clock_crossing_principles.md#radiation-hardening).
+[clock-crossing principles](clock_crossing_principles.md#radiation-hardening). With _SyncTmr_g_=true, the reset
+request synchronizers (_RstRqstA2B_, _RstRqstB2A_) and the acknowledge crossings are implemented three times, each
+followed by a majority voter.
 
 Regarding timing constraints, refer to [clock-crossing principles](clock_crossing_principles.md).

@@ -42,6 +42,7 @@ Automatic constraining currently only works for verilog only since 2024.2.
 | Width_g      | positive  | 1       | Number of data bits to implement the synchronizer for        |
 | RstLevel_g   | std_logic | '0'     | Value to set the synchronizer registers to upon reset. <br />Usually this does not play any role but if the value does not match the idle-state of the synchronized signal, a pulse is observed in the first two clock cycles after reset. This can be avoided by setting _RstLevel_g_ to the idle-state of the signals synchronized. |
 | SyncStages_g | positive  | 2       | Number of synchronization stages. <br />Range: 2 ... 4       |
+| SyncTmr_g    | boolean   | false   | Implement every synchronizer as three chains with a majority voter, see [clock-crossing principles](../base/clock_crossing_principles.md#triplicated-synchronizers) |
 
 ## Interfaces
 
@@ -63,4 +64,6 @@ The VHDL code contains all synthesis attributes required to ensure correct behav
 synchronizer FFs into shift registers) for all supported tools.
 
 The synchronizer FFs are excluded from automatic TMR, see
-[clock crossing principles](../base/clock_crossing_principles.md#radiation-hardening).
+[clock crossing principles](../base/clock_crossing_principles.md#radiation-hardening). With _SyncTmr_g_=true, the
+synchronizer is implemented three times and followed by a bitwise majority voter. An upset is then masked in all cases
+if every level of _DataAsync_ is held for at least two clock cycles of _Clk_.

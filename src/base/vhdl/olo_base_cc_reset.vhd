@@ -33,7 +33,8 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity olo_base_cc_reset is
     generic (
-        SyncStages_g : positive range 2 to 4 := 2
+        SyncStages_g : positive range 2 to 4 := 2;
+        SyncTmr_g    : boolean               := false
     );
     port (
         A_Clk       : in    std_logic;
@@ -51,14 +52,16 @@ end entity;
 architecture struct of olo_base_cc_reset is
 
     -- Domain A signals
-    signal RstALatch  : std_logic                    := '1';
-    signal RstRqstB2A : std_logic_vector(2 downto 0) := (others => '1');
-    signal RstAckB2A  : std_logic;
+    signal RstALatch     : std_logic                    := '1';
+    signal RstRqstB2A    : std_logic_vector(2 downto 0) := (others => '1');
+    signal RstRqstB2AOut : std_logic;
+    signal RstAckB2A     : std_logic;
 
     -- Domain B signals
-    signal RstBLatch  : std_logic                    := '1';
-    signal RstRqstA2B : std_logic_vector(2 downto 0) := (others => '1');
-    signal RstAckA2B  : std_logic;
+    signal RstBLatch     : std_logic                    := '1';
+    signal RstRqstA2B    : std_logic_vector(2 downto 0) := (others => '1');
+    signal RstRqstA2BOut : std_logic;
+    signal RstAckA2B     : std_logic;
 
     -- Synthesis attributes - suppress shift register extraction
     attribute shreg_extract of RstRqstB2A : signal is ShregExtract_SuppressExtraction_c;
@@ -127,7 +130,7 @@ begin
         end if;
     end process;
 
-    A_RstOut <= RstALatch or RstRqstB2A(RstRqstB2A'left);
+    A_RstOut <= RstALatch or RstRqstB2AOut;
 
     -- Domain B
     p_b_rst_sync : process (RstALatch, B_Clk) is
@@ -152,19 +155,101 @@ begin
         end if;
     end process;
 
-    B_RstOut <= RstBLatch or RstRqstA2B(RstRqstA2B'left);
+    B_RstOut <= RstBLatch or RstRqstA2BOut;
+
+    -- Single reset synchronizer chain per direction
+    g_single : if not SyncTmr_g generate
+        RstRqstB2AOut <= RstRqstB2A(RstRqstB2A'left);
+        RstRqstA2BOut <= RstRqstA2B(RstRqstA2B'left);
+    end generate;
+
+    -- Triplicated reset synchronizer chains: two more chains per direction, majority voter after the last stages
+    g_tmr : if SyncTmr_g generate
+
+        signal ChainOutB2A : std_logic_vector(0 to 2);
+        signal ChainOutA2B : std_logic_vector(0 to 2);
+
+    begin
+
+        -- Chain 0 is the chain above
+        ChainOutB2A(0) <= RstRqstB2A(RstRqstB2A'left);
+        ChainOutA2B(0) <= RstRqstA2B(RstRqstA2B'left);
+
+        -- Chains 1 and 2 (same structure and attributes as chain 0)
+        g_chain : for c in 1 to 2 generate
+
+            signal RstRqstB2A : std_logic_vector(2 downto 0) := (others => '1');
+            signal RstRqstA2B : std_logic_vector(2 downto 0) := (others => '1');
+
+            attribute shreg_extract of RstRqstB2A : signal is ShregExtract_SuppressExtraction_c;
+            attribute shreg_extract of RstRqstA2B : signal is ShregExtract_SuppressExtraction_c;
+
+            attribute syn_srlstyle of RstRqstB2A : signal is SynSrlstyle_FlipFlops_c;
+            attribute syn_srlstyle of RstRqstA2B : signal is SynSrlstyle_FlipFlops_c;
+
+            attribute dont_merge of RstRqstB2A : signal is DontMerge_SuppressChanges_c;
+            attribute dont_merge of RstRqstA2B : signal is DontMerge_SuppressChanges_c;
+
+            attribute preserve of RstRqstB2A : signal is Preserve_SuppressChanges_c;
+            attribute preserve of RstRqstA2B : signal is Preserve_SuppressChanges_c;
+
+            attribute syn_keep of RstRqstB2A : signal is SynKeep_SuppressChanges_c;
+            attribute syn_keep of RstRqstA2B : signal is SynKeep_SuppressChanges_c;
+
+            attribute syn_preserve of RstRqstB2A : signal is SynPreserve_SuppressChanges_c;
+            attribute syn_preserve of RstRqstA2B : signal is SynPreserve_SuppressChanges_c;
+
+            attribute async_reg of RstRqstB2A : signal is AsyncReg_TreatAsync_c;
+            attribute async_reg of RstRqstA2B : signal is AsyncReg_TreatAsync_c;
+
+            attribute syn_radhardlevel of RstRqstB2A : signal is SynRadhardlevel_None_c;
+            attribute syn_radhardlevel of RstRqstA2B : signal is SynRadhardlevel_None_c;
+
+        begin
+
+            p_a_rst_sync : process (RstBLatch, A_Clk) is
+            begin
+                if RstBLatch = '1' then
+                    RstRqstB2A <= (others => '1');
+                elsif rising_edge(A_Clk) then
+                    RstRqstB2A <= RstRqstB2A(RstRqstB2A'left - 1 downto 0) & '0';
+                end if;
+            end process;
+
+            p_b_rst_sync : process (RstALatch, B_Clk) is
+            begin
+                if RstALatch = '1' then
+                    RstRqstA2B <= (others => '1');
+                elsif rising_edge(B_Clk) then
+                    RstRqstA2B <= RstRqstA2B(RstRqstA2B'left - 1 downto 0) & '0';
+                end if;
+            end process;
+
+            ChainOutB2A(c) <= RstRqstB2A(RstRqstB2A'left);
+            ChainOutA2B(c) <= RstRqstA2B(RstRqstA2B'left);
+
+        end generate;
+
+        -- Majority voters
+        RstRqstB2AOut <= (ChainOutB2A(0) and ChainOutB2A(1)) or (ChainOutB2A(0) and ChainOutB2A(2)) or
+                         (ChainOutB2A(1) and ChainOutB2A(2));
+        RstRqstA2BOut <= (ChainOutA2B(0) and ChainOutA2B(1)) or (ChainOutA2B(0) and ChainOutA2B(2)) or
+                         (ChainOutA2B(1) and ChainOutA2B(2));
+
+    end generate;
 
     -- Ack Crossing
     i_ackb2a : entity work.olo_base_cc_bits
         generic map (
             Width_g      => 1,
-            SyncStages_g => SyncStages_g
+            SyncStages_g => SyncStages_g,
+            SyncTmr_g    => SyncTmr_g
         )
         port map (
             -- Input clock domain
             In_Clk      => B_Clk,
             In_Rst      => '0',
-            In_Data(0)  => RstRqstA2B(RstRqstA2B'left),
+            In_Data(0)  => RstRqstA2BOut,
             -- Output clock domain
             Out_Clk     => A_Clk,
             Out_Rst     => '0',
@@ -174,13 +259,14 @@ begin
     i_acka2b : entity work.olo_base_cc_bits
         generic map (
             Width_g      => 1,
-            SyncStages_g => SyncStages_g
+            SyncStages_g => SyncStages_g,
+            SyncTmr_g    => SyncTmr_g
         )
         port map (
             -- Input clock domain
             In_Clk      => A_Clk,
             In_Rst      => '0',
-            In_Data(0)  => RstRqstB2A(RstRqstA2B'left),
+            In_Data(0)  => RstRqstB2AOut,
             -- Output clock domain
             Out_Clk     => B_Clk,
             Out_Rst     => '0',

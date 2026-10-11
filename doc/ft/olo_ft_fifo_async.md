@@ -35,6 +35,7 @@ flags indicate whether a single-bit error was corrected or a double-bit error wa
 | ReadyRstState_g | std_logic | '1'     | Value of _In_Ready_ during reset. Behaves exactly as in [olo_base_fifo_async](../base/olo_base_fifo_async.md). |
 | Optimization_g  | string    | "SPEED" | "SPEED" or "LATENCY". Behaves exactly as in [olo_base_fifo_async](../base/olo_base_fifo_async.md). |
 | SyncStages_g    | positive  | 2       | Number of synchronization stages of the clock crossings. <br />Range: 2 ... 4 |
+| SyncTmr_g       | boolean   | false   | Implement every synchronizer as three chains with a majority voter, see [clock-crossing principles](../base/clock_crossing_principles.md#triplicated-synchronizers) |
 
 ## Interfaces
 
@@ -140,8 +141,15 @@ is protected by the automatic TMR of the surrounding design (e.g. `syn_radhardle
 Microchip devices), like any other logic.
 
 The synchronizers of the Gray-pointer and reset clock crossings are excluded from automatic TMR, see
-[clock-crossing principles](../base/clock_crossing_principles.md#radiation-hardening). A single-event upset of a
-pointer synchronizer register therefore shows a wrong pointer value on the other side of the FIFO for one clock
+[clock-crossing principles](../base/clock_crossing_principles.md#radiation-hardening).
+
+With _SyncTmr_g_=true, each of these synchronizers is implemented three times and followed by a majority voter, see
+[Triplicated Synchronizers](../base/clock_crossing_principles.md#triplicated-synchronizers). A single-event upset of a
+synchronizer register is then masked; the effects described below require two upsets of the same bit in different
+chains that reach the voter in the same clock cycle.
+
+With _SyncTmr_g_=false (default), a single-event upset of a
+pointer synchronizer register shows a wrong pointer value on the other side of the FIFO for one clock
 cycle. Because of the Gray-to-binary conversion, the wrong value can differ from the correct one by more than one
 entry. This only matters if the FIFO is empty (pointer seen by the read side) or full (pointer seen by the write
 side) in exactly this cycle and data is transferred: then an entry that was not written yet is read, or an entry

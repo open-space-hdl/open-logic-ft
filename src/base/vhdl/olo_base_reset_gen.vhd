@@ -36,7 +36,8 @@ entity olo_base_reset_gen is
         RstPulseCycles_g    : positive range 3 to positive'high := 3;
         RstInPolarity_g     : std_logic                         := '1';
         AsyncResetOutput_g  : boolean                           := false;
-        SyncStages_g        : positive range 2 to 4             := 2
+        SyncStages_g        : positive range 2 to 4             := 2;
+        SyncTmr_g           : boolean                           := false
     );
     port (
         Clk         : in    std_logic;
@@ -54,6 +55,7 @@ architecture struct of olo_base_reset_gen is
     signal RstSyncChain : std_logic_vector(2 downto 0)              := "111";
     signal RstSync      : std_logic;
     signal DsSync       : std_logic_vector(SyncStages_g-1 downto 0) := (others => '1');
+    signal SyncOut      : std_logic;
 
     -- Pulse prolongation
     constant PulseCntMax_c : natural                          := max(RstPulseCycles_g-4, 0);
@@ -61,17 +63,24 @@ architecture struct of olo_base_reset_gen is
     signal RstPulse        : std_logic                        := '1';
 
     -- Synthesis attributes - Suppress shift register extraction
-    attribute shreg_extract of DsSync : signal is ShregExtract_SuppressExtraction_c;
-    attribute syn_srlstyle of DsSync  : signal is SynSrlstyle_FlipFlops_c;
+    attribute shreg_extract of RstSyncChain : signal is ShregExtract_SuppressExtraction_c;
+    attribute shreg_extract of DsSync       : signal is ShregExtract_SuppressExtraction_c;
+    attribute syn_srlstyle of RstSyncChain  : signal is SynSrlstyle_FlipFlops_c;
+    attribute syn_srlstyle of DsSync        : signal is SynSrlstyle_FlipFlops_c;
 
-    -- Synthesis attributes - Preserve regsiters
-    attribute dont_merge of DsSync   : signal is DontMerge_SuppressChanges_c;
-    attribute preserve of DsSync     : signal is Preserve_SuppressChanges_c;
-    attribute syn_preserve of DsSync : signal is SynPreserve_SuppressChanges_c;
-    attribute syn_keep of DsSync     : signal is SynKeep_SuppressChanges_c;
+    -- Synthesis attributes - Preserve regsiters (RstSyncChain: required to keep the chains apart with SyncTmr_g)
+    attribute dont_merge of RstSyncChain   : signal is DontMerge_SuppressChanges_c;
+    attribute dont_merge of DsSync         : signal is DontMerge_SuppressChanges_c;
+    attribute preserve of RstSyncChain     : signal is Preserve_SuppressChanges_c;
+    attribute preserve of DsSync           : signal is Preserve_SuppressChanges_c;
+    attribute syn_preserve of RstSyncChain : signal is SynPreserve_SuppressChanges_c;
+    attribute syn_preserve of DsSync       : signal is SynPreserve_SuppressChanges_c;
+    attribute syn_keep of RstSyncChain     : signal is SynKeep_SuppressChanges_c;
+    attribute syn_keep of DsSync           : signal is SynKeep_SuppressChanges_c;
 
     -- Synthesis attributes - asynchronous register
-    attribute async_reg of DsSync : signal is AsyncReg_TreatAsync_c;
+    attribute async_reg of RstSyncChain : signal is AsyncReg_TreatAsync_c;
+    attribute async_reg of DsSync       : signal is AsyncReg_TreatAsync_c;
 
     -- Synthesis attributes - no automatic TMR (no voters between the synchronizer stages)
     attribute syn_radhardlevel of RstSyncChain : signal is SynRadhardlevel_None_c;
@@ -91,7 +100,7 @@ begin
 
     -- Asynchronous assertion
     g_async : if AsyncResetOutput_g generate
-        RstSync <= RstSyncChain(RstSyncChain'left);
+        SyncOut <= RstSyncChain(RstSyncChain'left);
     end generate;
 
     -- Synchronous assertion
@@ -105,7 +114,82 @@ begin
             end if;
         end process;
 
-        RstSync <= DsSync(DsSync'left);
+        SyncOut <= DsSync(DsSync'left);
+    end generate;
+
+    -- Single synchronizer chain
+    g_single : if not SyncTmr_g generate
+        RstSync <= SyncOut;
+    end generate;
+
+    -- Triplicated synchronizer chains: two more chains, majority voter after the last stages
+    g_tmr : if SyncTmr_g generate
+
+        signal ChainOut : std_logic_vector(0 to 2);
+
+    begin
+
+        -- Chain 0 is the chain above
+        ChainOut(0) <= SyncOut;
+
+        -- Chains 1 and 2 (same structure and attributes as chain 0)
+        g_chain : for c in 1 to 2 generate
+
+            signal RstSyncChain : std_logic_vector(2 downto 0)              := "111";
+            signal DsSync       : std_logic_vector(SyncStages_g-1 downto 0) := (others => '1');
+
+            attribute shreg_extract of RstSyncChain : signal is ShregExtract_SuppressExtraction_c;
+            attribute shreg_extract of DsSync       : signal is ShregExtract_SuppressExtraction_c;
+            attribute syn_srlstyle of RstSyncChain  : signal is SynSrlstyle_FlipFlops_c;
+            attribute syn_srlstyle of DsSync        : signal is SynSrlstyle_FlipFlops_c;
+
+            attribute dont_merge of RstSyncChain   : signal is DontMerge_SuppressChanges_c;
+            attribute dont_merge of DsSync         : signal is DontMerge_SuppressChanges_c;
+            attribute preserve of RstSyncChain     : signal is Preserve_SuppressChanges_c;
+            attribute preserve of DsSync           : signal is Preserve_SuppressChanges_c;
+            attribute syn_preserve of RstSyncChain : signal is SynPreserve_SuppressChanges_c;
+            attribute syn_preserve of DsSync       : signal is SynPreserve_SuppressChanges_c;
+            attribute syn_keep of RstSyncChain     : signal is SynKeep_SuppressChanges_c;
+            attribute syn_keep of DsSync           : signal is SynKeep_SuppressChanges_c;
+
+            attribute async_reg of RstSyncChain : signal is AsyncReg_TreatAsync_c;
+            attribute async_reg of DsSync       : signal is AsyncReg_TreatAsync_c;
+
+            attribute syn_radhardlevel of RstSyncChain : signal is SynRadhardlevel_None_c;
+            attribute syn_radhardlevel of DsSync       : signal is SynRadhardlevel_None_c;
+
+        begin
+
+            p_rstsync : process (RstIn, Clk) is
+            begin
+                if RstIn = RstInPolarity_g then
+                    RstSyncChain <= (others => '1');
+                elsif rising_edge(Clk) then
+                    RstSyncChain <= RstSyncChain(RstSyncChain'left - 1 downto 0) & '0';
+                end if;
+            end process;
+
+            g_async : if AsyncResetOutput_g generate
+                ChainOut(c) <= RstSyncChain(RstSyncChain'left);
+            end generate;
+
+            g_sync : if not AsyncResetOutput_g generate
+
+                p_sync : process (Clk) is
+                begin
+                    if rising_edge(Clk) then
+                        DsSync <= DsSync(DsSync'left - 1 downto 0) & RstSyncChain(RstSyncChain'left);
+                    end if;
+                end process;
+
+                ChainOut(c) <= DsSync(DsSync'left);
+            end generate;
+
+        end generate;
+
+        -- Majority voter
+        RstSync <= (ChainOut(0) and ChainOut(1)) or (ChainOut(0) and ChainOut(2)) or (ChainOut(1) and ChainOut(2));
+
     end generate;
 
     -- Prolong reset pulse

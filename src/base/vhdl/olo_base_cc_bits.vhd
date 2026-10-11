@@ -35,7 +35,8 @@ library work;
 entity olo_base_cc_bits is
     generic (
         Width_g      : positive              := 1;
-        SyncStages_g : positive range 2 to 4 := 2
+        SyncStages_g : positive range 2 to 4 := 2;
+        SyncTmr_g    : boolean               := false
     );
     port (
         -- Input clock domain
@@ -143,8 +144,101 @@ begin
         end if;
     end process;
 
-    -- Output is content of last sync stage
-    Out_Data <= RegN(RegN'high);
+    -- Single synchronizer chain: output is content of last sync stage
+    g_single : if not SyncTmr_g generate
+        Out_Data <= RegN(RegN'high);
+    end generate;
+
+    -- Triplicated synchronizer chains: two more chains, majority voter after the last sync stages
+    g_tmr : if SyncTmr_g generate
+
+        type ChainOut_t is array (0 to 2) of std_logic_vector(Width_g - 1 downto 0);
+
+        signal ChainOut : ChainOut_t;
+
+    begin
+
+        -- Chain 0 is the chain above
+        ChainOut(0) <= RegN(RegN'high);
+
+        -- Chains 1 and 2 (same structure and attributes as chain 0)
+        g_chain : for c in 1 to 2 generate
+
+            signal RegIn : std_logic_vector(Width_g - 1 downto 0) := (others => '0');
+            signal Reg0  : std_logic_vector(Width_g - 1 downto 0) := (others => '0');
+            signal RegN  : SyncStages_t                           := (others => (others => '0'));
+
+            attribute shreg_extract of Reg0  : signal is ShregExtract_SuppressExtraction_c;
+            attribute shreg_extract of RegN  : signal is ShregExtract_SuppressExtraction_c;
+            attribute shreg_extract of RegIn : signal is ShregExtract_SuppressExtraction_c;
+
+            attribute syn_srlstyle of Reg0  : signal is SynSrlstyle_FlipFlops_c;
+            attribute syn_srlstyle of RegN  : signal is SynSrlstyle_FlipFlops_c;
+            attribute syn_srlstyle of RegIn : signal is SynSrlstyle_FlipFlops_c;
+
+            attribute dont_merge of Reg0  : signal is DontMerge_SuppressChanges_c;
+            attribute dont_merge of RegN  : signal is DontMerge_SuppressChanges_c;
+            attribute dont_merge of RegIn : signal is DontMerge_SuppressChanges_c;
+
+            attribute preserve of Reg0  : signal is Preserve_SuppressChanges_c;
+            attribute preserve of RegN  : signal is Preserve_SuppressChanges_c;
+            attribute preserve of RegIn : signal is Preserve_SuppressChanges_c;
+
+            attribute syn_preserve of Reg0  : signal is SynPreserve_SuppressChanges_c;
+            attribute syn_preserve of RegN  : signal is SynPreserve_SuppressChanges_c;
+            attribute syn_preserve of RegIn : signal is SynPreserve_SuppressChanges_c;
+
+            attribute syn_keep of Reg0  : signal is SynKeep_SuppressChanges_c;
+            attribute syn_keep of RegN  : signal is SynKeep_SuppressChanges_c;
+            attribute syn_keep of RegIn : signal is SynKeep_SuppressChanges_c;
+
+            attribute async_reg of Reg0  : signal is AsyncReg_TreatAsync_c;
+            attribute async_reg of RegN  : signal is AsyncReg_TreatAsync_c;
+            attribute async_reg of RegIn : signal is AsyncReg_TreatAsync_c;
+
+            attribute syn_radhardlevel of Reg0  : signal is SynRadhardlevel_None_c;
+            attribute syn_radhardlevel of RegN  : signal is SynRadhardlevel_None_c;
+            attribute syn_radhardlevel of RegIn : signal is SynRadhardlevel_None_c;
+
+        begin
+
+            -- Input Register
+            p_inff : process (In_Clk) is
+            begin
+                if rising_edge(In_Clk) then
+                    RegIn <= In_Data;
+                    if In_Rst = '1' then
+                        RegIn <= (others => '0');
+                    end if;
+                end if;
+            end process;
+
+            -- Synchronizer process
+            p_outff : process (Out_Clk) is
+            begin
+                if rising_edge(Out_Clk) then
+                    Reg0    <= RegIn;
+                    RegN(0) <= Reg0;
+
+                    for i in 1 to RegN'high loop
+                        RegN(i) <= RegN(i - 1);
+                    end loop;
+
+                    if Out_Rst = '1' then
+                        Reg0 <= (others => '0');
+                        RegN <= (others => (others => '0'));
+                    end if;
+                end if;
+            end process;
+
+            ChainOut(c) <= RegN(RegN'high);
+
+        end generate;
+
+        -- Bitwise majority voter
+        Out_Data <= (ChainOut(0) and ChainOut(1)) or (ChainOut(0) and ChainOut(2)) or (ChainOut(1) and ChainOut(2));
+
+    end generate;
 
 end architecture;
 

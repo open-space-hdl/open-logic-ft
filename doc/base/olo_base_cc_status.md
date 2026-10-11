@@ -37,6 +37,7 @@ information.
 | :----------- | :------- | ------- | :----------------------------------------------------- |
 | Width_g      | positive | -       | Width of the data-signal to clock-cross                |
 | SyncStages_g | positive | 2       | Number of synchronization stages. <br />Range: 2 ... 4 |
+| SyncTmr_g    | boolean  | false   | Implement every synchronizer as three chains with a majority voter, see [clock-crossing principles](clock_crossing_principles.md#triplicated-synchronizers) |
 
 ## Interfaces
 
