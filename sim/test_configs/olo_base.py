@@ -59,6 +59,9 @@ def add_configs(olo_tb):
         tb = olo_tb.test_bench(tb_name)
         for R in [2, 3, 19]:
             named_config(tb, {'ClockRatio_g': R})
+        named_config(tb, {'SyncStages_g': 4})
+        for R in [2, 19]:
+            named_config(tb, {'ClockRatio_g': R, 'SyncTmr_g': True})
 
     ### olo_base_ram_... ###
     ram_tbs = ['olo_base_ram_sp_tb', 'olo_base_ram_tdp_tb', 'olo_base_ram_sdp_tb']

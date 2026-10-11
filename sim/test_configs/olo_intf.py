@@ -29,6 +29,8 @@ def add_configs(olo_tb):
         #Cover ranges around 31/32 and 63/64 in detail (clock divider edge cases)
         for Cycles in [10, 30, 31, 32, 50, 60, 61, 62, 63, 64, 65, 100, 200, 735]:
             named_config(tb, {'DebounceCycles_g': Cycles, 'Mode_g': Mode})
+        named_config(tb, {'Mode_g': Mode, 'SyncStages_g': 4})
+        named_config(tb, {'Mode_g': Mode, 'SyncTmr_g': True})
 
     ### olo_intf_i2c_master ###
     i2c_master_tb = 'olo_intf_i2c_master_tb'
@@ -42,6 +44,11 @@ def add_configs(olo_tb):
     # Clock Divider Enabled
     for ClkDiv_g in [0, 1, 2, 5]:
         named_config(tb, {'ClkDivBits_g': 8, 'ClkDiv_g': ClkDiv_g})
+    # Synchronizer stages (the clock runs at 16 MHz, the minimum ratio is 4*(SyncStages_g+2))
+    for Stages, BusFreq in [(3, int(800e3)), (4, int(500e3))]:
+        named_config(tb, {'BusFrequency_g': BusFreq, 'SyncStages_g': Stages})
+    for BusFreq in [int(100e3), int(1e6)]:
+        named_config(tb, {'BusFrequency_g': BusFreq, 'SyncTmr_g': True})
 
     ### olo_intf_sync ###
     sync_tb = 'olo_intf_sync_tb'
@@ -63,6 +70,8 @@ def add_configs(olo_tb):
     freqs = [(100, 100), (123, 7837), (7837, 123)]
     for FreqClk, FreqTest in freqs:
         named_config(tb, {'ClkFrequency_g': FreqClk, 'MaxClkTestFrequency_g': FreqTest})
+        named_config(tb, {'ClkFrequency_g': FreqClk, 'MaxClkTestFrequency_g': FreqTest, 'SyncStages_g': 4,
+                          'SyncTmr_g': True})
 
     ### olo_intf_spi_slave ###
     spi_slave_tb = 'olo_intf_spi_slave_tb'
@@ -87,6 +96,13 @@ def add_configs(olo_tb):
     for CPHA in [0, 1]:
         named_config(tb, {'SpiCpha_g': CPHA, 'ClkFrequency_g': clkFreq, 'BusFrequency_g': int(clkFreq/8),
                         'ConsecutiveTransactions_g': True})
+    #Synchronizer (every additional stage raises the minimum clock ratios of 8 and 10 by 2)
+    for CPHA in [0, 1]:
+        named_config(tb, {'SpiCpha_g': CPHA, 'SyncTmr_g': True})
+        for Stages in [3, 4]:
+            for Ratio in [2*Stages+4, 2*Stages+6]:
+                named_config(tb, {'SpiCpha_g': CPHA, 'ClkFrequency_g': clkFreq, 'BusFrequency_g': int(clkFreq/Ratio),
+                                'ConsecutiveTransactions_g': True, 'SyncStages_g': Stages})
 
     ### olo_intf_uart ###
     uart_tb = 'olo_intf_uart_tb'
@@ -98,6 +114,9 @@ def add_configs(olo_tb):
             named_config(tb, {'DataBits_g': DataBits, 'Parity_g' : Parity})
     for StopBits in ["1", "1.5", "2"]:
         named_config(tb, {'StopBits_g' : StopBits})
+    for BaudRate in [115200, 10000000]:
+        named_config(tb, {'BaudRate_g' : BaudRate, 'SyncStages_g': 4})
+        named_config(tb, {'BaudRate_g' : BaudRate, 'SyncTmr_g': True})
     # olo_intr_uart_clkdrift_tb does not require additional configurations
 
     ### olo_intf_spi_master ###

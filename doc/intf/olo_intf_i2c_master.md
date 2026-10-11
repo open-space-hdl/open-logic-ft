@@ -57,13 +57,15 @@ tristate buffers.
 
 | Name               | Type    | Default | Description                                                  |
 | :----------------- | :------ | ------- | :----------------------------------------------------------- |
-| ClkFrequency_g     | real    | -       | Frequency of the clock _Clk_ in Hz.<br />For correct operation, the clock frequency must be at least 16x higher than the I2C bus frequency. |
+| ClkFrequency_g     | real    | -       | Frequency of the clock _Clk_ in Hz.<br />For correct operation, the clock frequency must be at least 4 x (_SyncStages_g_ + 2) times higher than the I2C bus frequency (16x for _SyncStages_g_ = 2). |
 | I2cFrequency_g     | real    | 100.0e3 | Frequency of the _I2cScl_ signal in Hz (without clock division) |
 | ClkDivBits_g       | natural | 0       | Number of bits used for the _Cmd_ClkDiv_ port width. If this value is set to 0, the SCL clock divider is disabled. |
 | BusBusyTimeout_g   | real    | 1.0e-3  | If _I2cScl_ = '1' and _I2cSda_ = '1' for this time in sec., the bus is regarded as free. If the user does not provide any command for this time, the _olo_intf_i2c\_master_ automatically generates a stop-condition to release the bus. |
 | CmdTimeout_g       | real    | 1.0e-3  | When the _olo_intf\_i2c\_master_ is ready for the next command but the user does not provide a new command, after this timeout (in sec.) the bus is releases and _Status_CmdTo_ is pulsed to inform the user. |
 | InternalTriState_g | boolean | true    | **True** = Use internal tri-state buffer (_I2cScl_ and _I2cSda_) are used. <br />**False** = Use external tri-state buffer (_I2cScl\_x_ and _I2cSda\_x_) are used. |
 | DisableAsserts_g   | boolean | false   | If true, the _olo_intf\_i2c\_master_ does not print any messages during simulations. <br />This generic shall usually be false - it is only used to simulate command sequence errors (which normally produce errors due to assert statements). |
+| SyncStages_g       | positive | 2       | Number of synchronization stages for _I2cScl_ and _I2cSda_. More stages require a higher clock frequency, see _ClkFrequency_g_. <br />Range: 2 ... 4 |
+| SyncTmr_g          | boolean | false   | Implement every synchronizer as three chains with a majority voter, see [clock-crossing principles](../base/clock_crossing_principles.md#triplicated-synchronizers) |
 
 ## Interfaces
 

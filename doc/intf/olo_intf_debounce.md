@@ -19,8 +19,9 @@ prescaler divider shared between all signals in order to keep resource usage as 
 
 The entity has two modes of operation.
 
-- In _LOW_LATENCY_ mode, an incoming edge is forwarded immediately (less than 5 clock cycles of delay). After the edge
-  is forwarded to the output, the next edge can be detected only after the signal was stable for _DebounceTime_g_.
+- In _LOW_LATENCY_ mode, an incoming edge is forwarded immediately (less than _SyncStages_g_ + 3 clock cycles of
+  delay). After the edge is forwarded to the output, the next edge can be detected only after the signal was stable for
+  _DebounceTime_g_.
   - This mode of operation implies that single cycle input pulses are stretched to a pulse-width of _DebounceTime_g_.
 - In _GLITCH_FILTER_ mode, any signal change is only forwarded to the output after the signal was stable for
   _DebounceTime_g_ on the new level.
@@ -39,6 +40,8 @@ Below figure provides an example waveform for both modes of operation.
 | Width_g        | positive  | 1             | Number of signals to debounce                                |
 | IdleLevel_g    | std_logic | '0'           | Logic level the signal is in idle-state (e.g. button not pressed). <br />This affects the behavior of _DataOut_ immediately after reset (all outputs are set to _IdleLevel_g_ upon reset) |
 | Mode_g         | string    | "LOW_LATENCY" | Mode of operation. See [Description](#description) for details. <br />Valid values are _LOW_LATENCY_ and _GLITCH_FILTER_. |
+| SyncStages_g   | positive  | 2             | Number of synchronization stages of the input synchronizer. Each additional stage adds one clock cycle of latency. <br />Range: 2 ... 4 |
+| SyncTmr_g      | boolean   | false         | Implement every synchronizer as three chains with a majority voter, see [clock-crossing principles](../base/clock_crossing_principles.md#triplicated-synchronizers) |
 
 ## Interfaces
 

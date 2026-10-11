@@ -40,6 +40,8 @@ entity olo_intf_spi_slave_tb is
         SpiCpol_g                   : integer range 0 to 1  := 0;
         ConsecutiveTransactions_g   : boolean               := true;
         InternalTriState_g          : boolean               := true;
+        SyncStages_g                : positive range 2 to 4 := 2;
+        SyncTmr_g                   : boolean               := false;
         runner_cfg                  : string
     );
 end entity;
@@ -175,14 +177,16 @@ begin
         variable Mosi16_v, Miso16_v : std_logic_vector(15 downto 0);
         variable Mosi48_v, Miso48_v : std_logic_vector(47 downto 0);
         variable TxVldDelay_v       : integer;
-        constant ClkRatio_c         : real := real(ClkFrequency_g) / real(BusFrequency_g);
+        -- Every synchronization stage above two delays the reaction to the SPI inputs by one clock cycle in both halves
+        -- of the SCLK period, so the limits below move by two clock cycles per stage.
+        constant ClkRatio_c         : real := real(ClkFrequency_g) / real(BusFrequency_g) - 2.0*real(SyncStages_g - 2);
     begin
         test_runner_setup(runner, runner_cfg);
 
         while test_suite loop
 
             if ClkRatio_c < 6.0 then
-                check(false, "ClkFrequency_g must be at least 6 times higher than BusFrequency_g");
+                check(false, "ClkFrequency_g must be at least 6 + 2*(SyncStages_g - 2) times higher than BusFrequency_g");
             elsif ClkRatio_c < 8.0 then
                 TxVldDelay_v := 1;
             elsif ClkRatio_c < 10.0 then
@@ -506,7 +510,9 @@ begin
             SpiCPha_g                   => SpiCpha_g,
             LsbFirst_g                  => LsbFirst_g,
             ConsecutiveTransactions_g   => ConsecutiveTransactions_g,
-            InternalTriState_g          => InternalTriState_g
+            InternalTriState_g          => InternalTriState_g,
+            SyncStages_g                => SyncStages_g,
+            SyncTmr_g                   => SyncTmr_g
         )
         port map (
             -- Control Signals

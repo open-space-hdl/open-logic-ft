@@ -34,6 +34,8 @@ found [here](https://ece353.engr.wisc.edu/serial-interfaces/uart-basics/).
 | DataBits_g | positive | 8       | Number of data bits<br />Range: 7 ... 9                      |
 | StopBits_g | string   | "1"     | Number of stop bits. Allowed values: "1", "1.5", "2"         |
 | Parity_g   | string   | "none"  | Parity setting:<br />"none" : No parity bit<br />"even" : parity bit = 0 when there is an even number of ones in data<br />"odd" : parity but = 0 when there is an odd number of ones in data |
+| SyncStages_g | positive | 2       | Number of synchronization stages for _Uart_Rx_. <br />Range: 2 ... 4 |
+| SyncTmr_g  | boolean  | false   | Implement every synchronizer as three chains with a majority voter, see [clock-crossing principles](../base/clock_crossing_principles.md#triplicated-synchronizers) |
 
 ## Interfaces
 

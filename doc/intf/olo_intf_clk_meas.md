@@ -27,6 +27,8 @@ This block contains _Open Logic_ clock crossings, refer to
 | :-------------------- | :--- | ------- | :----------------------------------------------------------- |
 | ClkFrequency_g        | real | -       | Frequency of the _Clk_ clock (main-clock with a known frequency) in Hz.<br />Must be >= 100 Hz. |
 | MaxClkTestFrequency_g | real | 1.0e9   | Maximum frequency of the _ClkTest_ clock which can be measured in Hz.<br />Must be >= 100 Hz. |
+| SyncStages_g          | positive | 2       | Number of synchronization stages of the clock crossings. <br />Range: 2 ... 4 |
+| SyncTmr_g             | boolean | false   | Implement every synchronizer as three chains with a majority voter, see [clock-crossing principles](../base/clock_crossing_principles.md#triplicated-synchronizers) |
 
 ## Interfaces
 
