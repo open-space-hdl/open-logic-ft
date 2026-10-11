@@ -33,7 +33,8 @@ library ieee;
 entity olo_base_cc_pulse is
     generic (
         NumPulses_g     : positive              := 1;
-        SyncStages_g    : positive range 2 to 4 := 2
+        SyncStages_g    : positive range 2 to 4 := 2;
+        SyncTmr_g       : boolean               := false
     );
     port (
         In_Clk          : in    std_logic;
@@ -67,6 +68,9 @@ begin
 
     -- *** Reset Crossing ***
     i_rst : entity work.olo_base_cc_reset
+        generic map (
+            SyncTmr_g => SyncTmr_g
+        )
         port map (
             A_Clk       => In_Clk,
             A_RstIn     => In_RstIn,
@@ -97,7 +101,8 @@ begin
     i_sync : entity work.olo_base_cc_bits
         generic map (
             Width_g      => NumPulses_g,
-            SyncStages_g => SyncStages_g
+            SyncStages_g => SyncStages_g,
+            SyncTmr_g    => SyncTmr_g
         )
         port map (
             In_Clk   => In_Clk,

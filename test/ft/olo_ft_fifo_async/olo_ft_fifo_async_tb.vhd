@@ -31,7 +31,8 @@ entity olo_ft_fifo_async_tb is
     generic (
         runner_cfg     : string;
         Width_g        : positive range 5 to 128 := 32;
-        Optimization_g : string                  := "SPEED"
+        Optimization_g : string                  := "SPEED";
+        SyncTmr_g      : boolean                 := false
     );
 end entity;
 
@@ -298,7 +299,8 @@ begin
         generic map (
             Width_g        => Width_g,
             Depth_g        => Depth_c,
-            Optimization_g => Optimization_g
+            Optimization_g => Optimization_g,
+            SyncTmr_g      => SyncTmr_g
         )
         port map (
             In_Clk            => In_Clk,

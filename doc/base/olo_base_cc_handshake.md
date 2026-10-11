@@ -36,6 +36,7 @@ information.
 | Width_g         | positive  | -       | Data width in bits.                                          |
 | ReadyRstState_g | std_logic | '1'     | Controls the status of the _In_Ready_ signal in during reset.<br>Choose '1' for minimal logic on the (often timing-critical) _In_Ready_ path. |
 | SyncStages_g    | positive  | 2       | Number of synchronization stages. <br />Range: 2 ... 4       |
+| SyncTmr_g       | boolean   | false   | Implement every synchronizer as three chains with a majority voter, see [clock-crossing principles](clock_crossing_principles.md#triplicated-synchronizers) |
 
 ## Interfaces
 

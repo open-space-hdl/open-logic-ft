@@ -143,6 +143,7 @@ def add_configs(olo_tb):
         named_config(tb, {'Width_g': Width})
     for Opt in ['SPEED', 'LATENCY']:
         named_config(tb, {'Optimization_g': Opt})
+        named_config(tb, {'Optimization_g': Opt, 'SyncTmr_g': True})
 
     ### olo_ft_fifo_packet ###
     tb = olo_tb.test_bench('olo_ft_fifo_packet_tb')

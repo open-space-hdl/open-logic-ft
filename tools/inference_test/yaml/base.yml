@@ -37,6 +37,11 @@ entities:
           - Match_Valid
   # olo_base_cc_bits
   - entity_name: "olo_base_cc_bits"
+    configurations:
+      - name: "Default"
+      - name: "SyncTmr"
+        generics:
+          SyncTmr_g: true
   # olo_base_cc_handshake
   - entity_name: "olo_base_cc_handshake"
     configurations:
@@ -53,6 +58,11 @@ entities:
   - entity_name: "olo_base_cc_pulse"
   # olo_base_cc_reset
   - entity_name: "olo_base_cc_reset"
+    configurations:
+      - name: "Default"
+      - name: "SyncTmr"
+        generics:
+          SyncTmr_g: true
   # olo_base_cc_simple
   - entity_name: "olo_base_cc_simple"
   # olo_base_cc_status
@@ -127,7 +137,12 @@ entities:
       - name: "d512-w16"
         generics:
           Width_g: 16
-          Depth_g: 512 
+          Depth_g: 512
+      - name: "d512-w16-synctmr"
+        generics:
+          Width_g: 16
+          Depth_g: 512
+          SyncTmr_g: true
   # olo_base_fifo_packet
   - entity_name: "olo_base_fifo_packet"
     configurations:
@@ -251,6 +266,11 @@ entities:
       cologne: "TDP not supported on Cologne Chip FPGAs"
   # olo_base_reset_gen
   - entity_name: "olo_base_reset_gen"
+    configurations:
+      - name: "Default"
+      - name: "SyncTmr"
+        generics:
+          SyncTmr_g: true
   # olo_base_strobe_div
   - entity_name: "olo_base_strobe_div"
     configurations:

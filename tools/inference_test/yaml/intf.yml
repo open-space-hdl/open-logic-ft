@@ -41,6 +41,11 @@ entities:
           - Spi_Miso
   # olo_intf_sync
   - entity_name: "olo_intf_sync"
+    configurations:
+      - name: "Default"
+      - name: "SyncTmr"
+        generics:
+          SyncTmr_g: true
   # olo_intf_uart
   - entity_name: "olo_intf_uart"
     configurations:

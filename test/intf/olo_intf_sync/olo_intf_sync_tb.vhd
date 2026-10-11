@@ -28,6 +28,7 @@ entity olo_intf_sync_tb is
     generic (
         RstLevel_g     : natural range 0 to 1  := 0;
         SyncStages_g   : positive range 2 to 4 := 2;
+        SyncTmr_g      : boolean               := false;
         runner_cfg     : string
     );
 end entity;
@@ -64,7 +65,8 @@ begin
         generic map (
             Width_g      => DataWidth_c,
             RstLevel_g   => RstLevel_c,
-            SyncStages_g => SyncStages_g
+            SyncStages_g => SyncStages_g,
+            SyncTmr_g    => SyncTmr_g
         )
         port map (
             Clk         => Clk,
