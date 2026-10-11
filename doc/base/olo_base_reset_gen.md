@@ -45,6 +45,7 @@ documentation of your target technology or play it safe and connect _RstIn_.
 | RstInPolarity_g    | std_logic | '1'     | Polarity of _RstIn_.<br />'1' - Active High<br />'0' - Active Low |
 | AsyncResetOutput_g | boolean   | false   | True = _RstOut_ is asserted asynchronously (_RstIn_ is forwarded even in absence of _Clk_ activity)<br />False = _RstOut_ may is asserted synchronously (upon _Clk_ rising edge). |
 | SyncStages_g       | positive  | 2       | Number of synchronization stages for the multi-stage synchronizer in case of _AsyncResetOutput_g_=false. <br />This generic is not having any effect for _AsyncResetOutput_g_=true.<br>Range: 2 ... 4 |
+| SyncTmr_g          | boolean   | false   | Implement every synchronizer as three chains with a majority voter, see [clock-crossing principles](clock_crossing_principles.md#triplicated-synchronizers) |
 
 ## Interfaces
 
@@ -72,4 +73,6 @@ output.
 ![architecture](./misc/olo_base_reset_gen_async.svg)
 
 The reset synchronizer FFs are excluded from automatic TMR, see
-[clock crossing principles](./clock_crossing_principles.md#radiation-hardening).
+[clock crossing principles](./clock_crossing_principles.md#radiation-hardening). With _SyncTmr_g_=true, the reset
+synchronizer (including the synchronizer for synchronous assertion) is implemented three times and followed by a
+majority voter. The counter for the pulse prolongation is left to the automatic TMR of the design.

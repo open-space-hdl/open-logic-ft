@@ -31,6 +31,10 @@ def add_configs(olo_tb):
             named_config(tb, {'ClockRatio_N_g': N, 'ClockRatio_D_g': D})
         for Stages in [2, 4]:
             named_config(tb, {'SyncStages_g': Stages})
+        # Triplicated synchronizer chains
+        for N, D in [(1, 1), (1, 3), (3, 1), (19, 20)]:
+            named_config(tb, {'ClockRatio_N_g': N, 'ClockRatio_D_g': D, 'SyncTmr_g': True})
+        named_config(tb, {'SyncStages_g': 4, 'SyncTmr_g': True})
 
     ### olo_base_cc_handshake ###
     cc_handshake_tb = 'olo_base_cc_handshake_tb'
@@ -92,6 +96,7 @@ def add_configs(olo_tb):
         if tb_name == "olo_base_fifo_async_tb":
             for Stages in [2, 4]:
                 named_config(tb, {"SyncStages_g": Stages})
+                named_config(tb, {"SyncStages_g": Stages, "SyncTmr_g": True})
             for Opt in ["SPEED", "LATENCY"]:
                 named_config(tb, {"Optimization_g": Opt})
 
@@ -236,6 +241,10 @@ def add_configs(olo_tb):
         for Polarity in [0, 1]:
             for AsyncOutput in [True, False]:
                 named_config(tb, {'RstPulseCycles_g': Cycles, 'RstInPolarity_g': Polarity, 'AsyncResetOutput_g': AsyncOutput})
+    # Triplicated synchronizer chains
+    for Cycles in [3, 5]:
+        for AsyncOutput in [True, False]:
+            named_config(tb, {'RstPulseCycles_g': Cycles, 'AsyncResetOutput_g': AsyncOutput, 'SyncTmr_g': True})
 
     ### olo_base_fifo_packet ###
     fifo_packet_tb = 'olo_base_fifo_packet_tb'

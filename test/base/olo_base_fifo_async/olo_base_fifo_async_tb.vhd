@@ -31,7 +31,8 @@ entity olo_base_fifo_async_tb is
         RamBehavior_g   : string               := "RBW";
         ReadyRstState_g : integer range 0 to 1 := 1;
         Optimization_g  : string               := "LATENCY";
-        SyncStages_g    : integer range 2 to 4 := 2
+        SyncStages_g    : integer range 2 to 4 := 2;
+        SyncTmr_g       : boolean              := false
     );
 end entity;
 
@@ -92,7 +93,8 @@ begin
             RamBehavior_g   => RamBehavior_g,
             ReadyRstState_g => toStdl(ReadyRstState_g),
             Optimization_g  => Optimization_g,
-            SyncStages_g    => SyncStages_g
+            SyncStages_g    => SyncStages_g,
+            SyncTmr_g       => SyncTmr_g
         )
         port map (
             -- Control Ports

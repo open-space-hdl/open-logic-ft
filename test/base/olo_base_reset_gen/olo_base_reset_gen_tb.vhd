@@ -29,7 +29,8 @@ entity olo_base_reset_gen_tb is
         runner_cfg          : string;
         RstPulseCycles_g    : positive range 3 to positive'high := 3;
         RstInPolarity_g     : integer range 0 to 1              := 1;
-        AsyncResetOutput_g  : boolean                           := true
+        AsyncResetOutput_g  : boolean                           := true;
+        SyncTmr_g           : boolean                           := false
     );
 end entity;
 
@@ -58,7 +59,8 @@ begin
         generic map (
             RstPulseCycles_g    => RstPulseCycles_g,
             RstInPolarity_g     => RstPolarityStdl_c,
-            AsyncResetOutput_g  => AsyncResetOutput_g
+            AsyncResetOutput_g  => AsyncResetOutput_g,
+            SyncTmr_g           => SyncTmr_g
         )
         port map (
             Clk     => Clk,

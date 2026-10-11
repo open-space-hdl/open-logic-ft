@@ -63,11 +63,48 @@ synchronizers but not the synchronizers themselves. This concerns the synchroniz
 [olo_base_reset_gen](./olo_base_reset_gen.md) and [olo_intf_sync](../intf/olo_intf_sync.md), and thus all clock
 crossings built on them. Other tools ignore the attribute.
 
-As a consequence, a single-event upset of a synchronizer register is not masked: the receiving side sees a wrong value
-for one clock cycle. Depending on the clock crossing, this can lead to a wrong level for one cycle, a spurious or lost
-pulse or transfer (toggle-based crossings such as [olo_base_cc_pulse](./olo_base_cc_pulse.md)), a wrong pointer value
-for one cycle ([olo_base_fifo_async](./olo_base_fifo_async.md)) or a spurious reset. Take this into account in the
-radiation analysis of the design.
+The generic _SyncTmr_g_ selects whether the synchronizers are implemented once or three times. It is available on all
+entities that have a _SyncStages_g_ generic.
+
+### Single Synchronizers
+
+By default (_SyncTmr_g_ = false), every synchronizer is implemented once. A single-event upset of a synchronizer
+register is not masked: the receiving side sees a wrong value for one clock cycle. Depending on the clock crossing, this
+can lead to a wrong level for one cycle, a spurious or lost pulse or transfer (toggle-based crossings such as
+[olo_base_cc_pulse](./olo_base_cc_pulse.md)), a wrong pointer value for one cycle
+([olo_base_fifo_async](./olo_base_fifo_async.md)) or a spurious reset. Take this into account in the radiation analysis
+of the design.
+
+### Triplicated Synchronizers
+
+With _SyncTmr_g_ = true, every synchronizer is implemented as three independent chains (including the input register
+of [olo_base_cc_bits](./olo_base_cc_bits.md)), followed by a bitwise majority voter after the last stage. The chains are
+excluded from automatic TMR as well, so there are no voters between the stages and the metastability MTBF of each chain
+is the one of a single synchronizer. The voter masks an upset of a register in one of the chains. The chains carry the
+same synthesis attributes as a single synchronizer, which also keep the tools from merging them. The latency does not
+change; the cost is three times the synchronizer registers plus one voter per bit.
+
+Only the synchronizers are triplicated. All other registers of the clock crossings are left to the automatic TMR of the
+design. _SyncTmr_g_ = true is therefore meant for designs that use automatic TMR.
+
+Without upsets, the behavior is the same as with single synchronizers. However, the three chains can see a change of
+their input one clock cycle apart (skew between the chains, metastability), so after a change they can disagree for one
+clock cycle. An upset of one of the other two chains in this cycle is not masked. If every level of the synchronized
+signal is stable for at least two clock cycles of the slower clock, this does not change the result: the change only
+appears one clock cycle later at the output. If a level is shorter, an upset in this cycle can have the same effect as
+with a single synchronizer. The constraints (see [Constraining](#constraining)) limit the skew between the chains to
+the period of the faster clock, which is what the two clock cycles are based on.
+
+- [olo_base_cc_simple](./olo_base_cc_simple.md), [olo_base_cc_status](./olo_base_cc_status.md),
+  [olo_base_cc_handshake](./olo_base_cc_handshake.md), [olo_base_cc_reset](./olo_base_cc_reset.md) and
+  [olo_base_reset_gen](./olo_base_reset_gen.md) fulfill this requirement by design.
+- [olo_base_fifo_async](./olo_base_fifo_async.md) does not need it: the Gray-coded pointers change only one bit at a
+  time, so every chain sees either the old or the new pointer value and the voted value is always one of the two.
+- [olo_base_cc_pulse](./olo_base_cc_pulse.md) fulfills it if the pulses are at least two clock cycles of the slower
+  clock apart, which is the maximum pulse rate of the entity.
+- For [olo_base_cc_bits](./olo_base_cc_bits.md) and [olo_intf_sync](../intf/olo_intf_sync.md), the user must hold every
+  level of the input for at least two clock cycles of the slower clock (_Clk_ for _olo_intf_sync_) to profit from the
+  full protection.
 
 ## Selection Table
 

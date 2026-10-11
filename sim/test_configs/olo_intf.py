@@ -49,6 +49,7 @@ def add_configs(olo_tb):
     for SyncStages in [2, 4]:
         for ResetLvel in [0, 1]:
             named_config(tb, {'SyncStages_g': SyncStages, 'RstLevel_g': ResetLvel})
+            named_config(tb, {'SyncStages_g': SyncStages, 'RstLevel_g': ResetLvel, 'SyncTmr_g': True})
 
     ### olo_intf_clk_meas ###
     clk_meas_tb = 'olo_intf_clk_meas_tb'

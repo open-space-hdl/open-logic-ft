@@ -31,7 +31,8 @@ entity olo_base_cc_handshake_tb is
         ReadyRstState_g : integer               := 1;
         ClockRatio_N_g  : integer               := 1;
         ClockRatio_D_g  : integer               := 1;
-        SyncStages_g    : positive range 2 to 4 := 2
+        SyncStages_g    : positive range 2 to 4 := 2;
+        SyncTmr_g       : boolean               := false
     );
 end entity;
 
@@ -203,7 +204,8 @@ begin
         generic map (
             Width_g         => DataWidth_c,
             ReadyRstState_g => ReadyRstState_c,
-            SyncStages_g    => SyncStages_g
+            SyncStages_g    => SyncStages_g,
+            SyncTmr_g       => SyncTmr_g
         )
         port map (
             In_Clk      => In_Clk,

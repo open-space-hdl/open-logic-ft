@@ -44,7 +44,8 @@ entity olo_ft_fifo_async is
         RamBehavior_g   : string                := "RBW";
         ReadyRstState_g : std_logic             := '1';
         Optimization_g  : string                := "SPEED";
-        SyncStages_g    : positive range 2 to 4 := 2
+        SyncStages_g    : positive range 2 to 4 := 2;
+        SyncTmr_g       : boolean               := false
     );
     port (
         -- Input interface
@@ -135,7 +136,8 @@ begin
             RamBehavior_g   => RamBehavior_g,
             ReadyRstState_g => ReadyRstState_g,
             Optimization_g  => Optimization_g,
-            SyncStages_g    => SyncStages_g
+            SyncStages_g    => SyncStages_g,
+            SyncTmr_g       => SyncTmr_g
         )
         port map (
             In_Clk       => In_Clk,

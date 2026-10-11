@@ -43,7 +43,8 @@ entity olo_base_fifo_async is
         RamBehavior_g   : string                := "RBW";
         ReadyRstState_g : std_logic             := '1';
         Optimization_g  : string                := "SPEED"; -- SPEED or LATENCY
-        SyncStages_g    : positive range 2 to 4 := 2
+        SyncStages_g    : positive range 2 to 4 := 2;
+        SyncTmr_g       : boolean               := false
     );
     port (
         -- Input interface
@@ -299,7 +300,8 @@ begin
     i_cc_wr_rd : entity work.olo_base_cc_bits
         generic map (
             Width_g      => AddrWidth_c,
-            SyncStages_g => SyncStages_g
+            SyncStages_g => SyncStages_g,
+            SyncTmr_g    => SyncTmr_g
         )
         port map (
             In_Clk   => In_Clk,
@@ -316,7 +318,8 @@ begin
     i_cc_rd_wr : entity work.olo_base_cc_bits
         generic map (
             Width_g      => AddrWidth_c,
-            SyncStages_g => SyncStages_g
+            SyncStages_g => SyncStages_g,
+            SyncTmr_g    => SyncTmr_g
         )
         port map (
             In_Clk   => Out_Clk,
@@ -329,6 +332,9 @@ begin
 
     -- Reset CC
     i_rst_cc : entity work.olo_base_cc_reset
+        generic map (
+            SyncTmr_g => SyncTmr_g
+        )
         port map (
             A_Clk       => In_Clk,
             A_RstIn     => In_Rst,

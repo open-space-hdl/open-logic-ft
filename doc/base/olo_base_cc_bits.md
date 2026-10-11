@@ -30,6 +30,7 @@ information.
 | :----------- | :------- | ------- | :------------------------------------------------------ |
 | Width_g      | positive | 1       | Number of data bits to implement the clock crossing for |
 | SyncStages_g | positive | 2       | Number of synchronization stages. <br />Range: 2 ... 4  |
+| SyncTmr_g    | boolean  | false   | Implement every synchronizer as three chains with a majority voter, see [clock-crossing principles](clock_crossing_principles.md#triplicated-synchronizers) |
 
 ## Interfaces
 
@@ -61,6 +62,8 @@ The VHDL code contains all synthesis attributes required to ensure correct behav
 synchronizer FFs into shift registers) for all supported tools.
 
 The synchronizer FFs are excluded from automatic TMR, see
-[clock-crossing principles](clock_crossing_principles.md#radiation-hardening).
+[clock-crossing principles](clock_crossing_principles.md#radiation-hardening). With _SyncTmr_g_=true, the input
+register and the synchronizer are implemented three times and followed by a bitwise majority voter. An upset is then
+masked in all cases if every level of _In_Data_ is held for at least two clock cycles of the slower clock.
 
 Regarding timing constraints, refer to [clock-crossing principles](clock_crossing_principles.md).
