@@ -6,6 +6,7 @@ description : "local files (release plus WIP); AXI related modules see https://g
 filesets:
   rtl:
     files:
+      - "vhdl/olo_axi_lite_decoder.vhd"
       - "vhdl/olo_axi_lite_slave.vhd"
       - "vhdl/olo_axi_master_full.vhd"
       - "vhdl/olo_axi_master_simple.vhd"

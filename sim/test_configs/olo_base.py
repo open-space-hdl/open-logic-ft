@@ -137,6 +137,16 @@ def add_configs(olo_tb):
     for Ratio in [(16, 24), (24, 16), (32, 8), (8, 32)]:
         named_config(tb, {'InWidth_g': Ratio[0], 'OutWidth_g': Ratio[1]})
 
+    ### olo_base_chunker ###
+    chunker_tb = 'olo_base_chunker_tb'
+    tb = olo_tb.test_bench(chunker_tb)
+    for Width in [8, 32]:
+        for ChunkBeats in [1, 3, 16]:
+            for RandomStall in [False, True]:
+                named_config(tb, {'Width_g': Width, 'ChunkBeats_g': ChunkBeats, 'RandomStall_g': RandomStall})
+    named_config(tb, {'Width_g': 12, 'ChunkBeats_g': 4, 'RandomStall_g': True})
+    named_config(tb, {'Width_g': 128, 'ChunkBeats_g': 2, 'RandomStall_g': True})
+
     ### olo_base_pl_stage ###
     pl_tb = 'olo_base_pl_stage_tb'
     tb = olo_tb.test_bench(pl_tb)

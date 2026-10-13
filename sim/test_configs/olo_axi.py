@@ -70,3 +70,12 @@ def add_configs(olo_tb):
         named_config(tb, {'UserWidth_g': UserWidth})
     for Stages in [1, 4, 12]:
         named_config(tb, {'Stages_g': Stages})
+
+    ### olo_axi_lite_decoder ###
+    axi_lite_decoder_tb = 'olo_axi_lite_decoder_tb'
+    tb = olo_tb.test_bench(axi_lite_decoder_tb)
+    for Ports in [1, 3, 4]:
+        named_config(tb, {'Ports_g': Ports})
+    named_config(tb, {'Ports_g': 5, 'PortAddrWidth_g': 12, 'AxiAddrWidth_g': 15})
+    named_config(tb, {'Ports_g': 2, 'AxiDataWidth_g': 64, 'PortAddrWidth_g': 4})
+    named_config(tb, {'Ports_g': 16, 'AxiDataWidth_g': 16, 'PortAddrWidth_g': 10, 'AxiAddrWidth_g': 14})

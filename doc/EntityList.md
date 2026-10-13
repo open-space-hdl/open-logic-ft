@@ -148,6 +148,7 @@ See [Conventions](./Conventions.md) for a description about TDM (time-division-m
 | [olo_base_crc](./base/olo_base_crc.md) | CRC calculation engine |
 | [olo_base_crc_append](./base/olo_base_crc_append.md) | Append CRC to AXI4-Stream packets |
 | [olo_base_crc_check](./base/olo_base_crc_check.md) | Check CRC of AXI4-Stream packets and drop invalid packets |
+| [olo_base_chunker](./base/olo_base_chunker.md) | Split AXI4-Stream packets into chunks of a fixed number of beats (no padding, end of the input packet marked) |
 | [olo_base_sample_hold](./base/olo_base_sample_hold.md) | Sample and hold for bit-vectors. Holds the last sampled value until a new sample is taken. |
 
 ## axi
@@ -160,9 +161,11 @@ This area contains AXI4 related elements.
 | [olo_axi_lite_slave](./axi/olo_axi_lite_slave.md)       | Interface to attach user register banks and memories to the AXI4-Lite bus. |
 | [olo_axi_master_simple](./axi/olo_axi_master_simple.md) | AXI4 master - does execute arbitrarily sized transfer over AXI4. The __simple_ version of the master does only allow access to word-aligned addresses and sizes. |
 | [olo_axi_master_full](./axi/olo_axi_master_full.md)     | AXI4 master - Same as [olo_axi_master_simple](./axi/olo_axi_master_simple.md) but does allow access that are not word-aligned (in terms of start address, size or both). |
+| [olo_axi_lite_decoder](./axi/olo_axi_lite_decoder.md)   | Minimal AXI4-Lite address decoder connecting one master to several slaves (e.g. register banks) in equally sized address windows. |
 
 **Note:** _Open Logic_ focuses on providing utilities for development of AXI endpoints (masters and slaves).
-_Open Logic_ does not aim to provide AXI interconnect infrastructure (e.g. crossbars, interconnects, ...). Often the
+Apart from the minimal register-access decoder [olo_axi_lite_decoder](./axi/olo_axi_lite_decoder.md), _Open Logic_
+does not aim to provide AXI interconnect infrastructure (e.g. crossbars, interconnects, ...). Often the
 vendor IPs are used (for tool integration reasons) for these aspects. If you are looking for a pure VHDL implementation
 of AXI interconnects, it's suggested that you use one of the following libraries:
 
