@@ -2,7 +2,8 @@
 #
 # Fork-only (open-space-hdl/open-logic-ft), never part of a pull request to open-logic/open-logic.
 # The pages are the Markdown files of the repository (Readme.md, doc/); hooks.py adds them to the site and links
-# every other repository file on GitHub. Only content/index.md, the start page, is written for the site.
+# every other repository file on GitHub. Only the pages in content/ (the start page and the comparison with
+# Open Logic) are written for the site.
 # Local preview:
 #
 #   python -m pip install -r tools/ft_docs/requirements.txt
@@ -46,6 +47,7 @@ extra:
 
 nav:
   - Home: index.md
+  - Comparison with Open Logic: comparison.md
   - Fault tolerance:
       - Principles: doc/ft/olo_ft_principles.md
       - doc/ft/*.md
