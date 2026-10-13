@@ -18,6 +18,7 @@ filesets:
       - "vhdl/olo_base_cc_simple.vhd"
       - "vhdl/olo_base_cc_status.vhd"
       - "vhdl/olo_base_cc_xn2n.vhd"
+      - "vhdl/olo_base_chunker.vhd"
       - "vhdl/olo_base_crc.vhd"
       - "vhdl/olo_base_crc_append.vhd"
       - "vhdl/olo_base_crc_check.vhd"

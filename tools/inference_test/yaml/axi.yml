@@ -88,3 +88,25 @@ entities:
         M_ArLen: 8
         M_ArCache: 4
         M_ArQos: 4
+  # olo_axi_lite_decoder
+  - entity_name: "olo_axi_lite_decoder"
+    configurations:
+    - name: "addr16-data32-4ports"
+      generics:
+        AxiAddrWidth_g: 16
+        AxiDataWidth_g: 32
+        Ports_g: 4
+        PortAddrWidth_g: 12
+      in_reduce:
+        S_AxiLite_ArAddr: 16
+        S_AxiLite_AwAddr: 16
+        S_AxiLite_WData: 32
+        M_AxiLite_RData: 128
+        M_AxiLite_RResp: 8
+        M_AxiLite_BResp: 8
+      out_reduce:
+        S_AxiLite_RData: 32
+        M_AxiLite_ArAddr: 48
+        M_AxiLite_AwAddr: 48
+        M_AxiLite_WData: 128
+        M_AxiLite_WStrb: 16

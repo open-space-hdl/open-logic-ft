@@ -49,6 +49,7 @@ src/base/vhdl/olo_base_decode_firstbit.vhd
 src/base/vhdl/olo_base_crc.vhd
 src/base/vhdl/olo_base_crc_check.vhd
 src/base/vhdl/olo_base_crc_append.vhd
+src/base/vhdl/olo_base_chunker.vhd
 src/base/vhdl/olo_base_cc_bits.vhd
 src/base/vhdl/olo_base_cc_reset.vhd
 src/base/vhdl/olo_base_fifo_async.vhd
@@ -72,6 +73,7 @@ src/axi/vhdl/olo_axi_master_full.vhd
 src/ft/vhdl/olo_ft_axi_master_full.vhd
 src/axi/vhdl/olo_axi_lite_slave.vhd
 src/ft/vhdl/olo_ft_ecc_monitor_axi.vhd
+src/axi/vhdl/olo_axi_lite_decoder.vhd
 3rdParty/en_cl_fix/hdl/en_cl_fix_private_pkg.vhd
 3rdParty/en_cl_fix/hdl/en_cl_fix_pkg.vhd
 src/fix/vhdl/olo_fix_private_lin_approx_sqrt_pkg.vhd

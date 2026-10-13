@@ -77,6 +77,17 @@ entities:
       - name: "16bit"
         generics:
           Width_g: 16        
+  # olo_base_chunker
+  - entity_name: "olo_base_chunker"
+    configurations:
+      - name: "32bit-16beats"
+        generics:
+          Width_g: 32
+          ChunkBeats_g: 16
+        in_reduce:
+          In_Data: 32
+        out_reduce:
+          Out_Data: 32
   # olo_base_crc
   - entity_name: "olo_base_crc"
     configurations:
