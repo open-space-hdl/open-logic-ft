@@ -1,6 +1,6 @@
 # Comparison with Open Logic 4.7.0
 
-This page compares the tag `4.7.0-ft.2` of Open Logic FT with the release 4.7.0 of
+This page compares the tag `4.7.0-ft.3` of Open Logic FT with the release 4.7.0 of
 [Open Logic](https://github.com/open-logic/open-logic), entity by entity. The tag is based on the upstream branch
 `develop` after the release; its VHDL sources are identical with 4.7.0, so every difference listed here comes from the
 fork.
@@ -16,7 +16,7 @@ stands in Open Logic:
 
 ## ft area
 
-| Entity | 4.7.0 | 4.7.0-ft.2 | Upstream |
+| Entity | 4.7.0 | 4.7.0-ft.3 | Upstream |
 | --- | --- | --- | --- |
 | [olo_ft_pkg_ecc](doc/ft/olo_ft_pkg_ecc.md) | ✓ | ✓ | Merged ([#294](https://github.com/open-logic/open-logic/pull/294)) |
 | [olo_ft_ecc_encode](doc/ft/olo_ft_ecc_encode.md), [olo_ft_ecc_decode](doc/ft/olo_ft_ecc_decode.md) | ✓ | ✓ | Merged ([#294](https://github.com/open-logic/open-logic/pull/294)) |
@@ -29,6 +29,13 @@ stands in Open Logic:
 | [olo_ft_ecc_monitor](doc/ft/olo_ft_ecc_monitor.md), [olo_ft_ecc_monitor_axi](doc/ft/olo_ft_ecc_monitor_axi.md) | – | ✓ | Ready |
 | **Public ft entities** | **9** | **16** | |
 
+## base and axi: additional entities
+
+| Entity | 4.7.0 | 4.7.0-ft.3 | Upstream |
+| --- | --- | --- | --- |
+| [olo_base_chunker](doc/base/olo_base_chunker.md) | – | ✓ Splits stream packets into chunks of a fixed number of beats, marks the end of the input packet | Not yet proposed |
+| [olo_axi_lite_decoder](doc/axi/olo_axi_lite_decoder.md) | – | ✓ Connects one AXI4-Lite master to several register banks in equally sized address windows | Not yet proposed |
+
 ## base, axi, intf and fix: entities with changes
 
 The fork changes these entities in three ways:
@@ -40,7 +47,7 @@ The fork changes these entities in three ways:
   [clock crossing principles](doc/base/clock_crossing_principles.md#radiation-hardening) describe both measures.
 - **Safe FSM:** `when others =>` returns the state machine to a safe state instead of doing nothing.
 
-| Entity | 4.7.0 | 4.7.0-ft.2 | Upstream |
+| Entity | 4.7.0 | 4.7.0-ft.3 | Upstream |
 | --- | --- | --- | --- |
 | [olo_base_cc_bits](doc/base/olo_base_cc_bits.md), [olo_base_cc_reset](doc/base/olo_base_cc_reset.md), [olo_base_reset_gen](doc/base/olo_base_reset_gen.md), [olo_intf_sync](doc/intf/olo_intf_sync.md) | ✓ | + `SyncTmr_g`, synchronizer attribute ¹ | Attribute: Proposed ([#360](https://github.com/open-logic/open-logic/issues/360)); `SyncTmr_g`: Not yet proposed |
 | [olo_base_cc_pulse](doc/base/olo_base_cc_pulse.md), [olo_base_cc_simple](doc/base/olo_base_cc_simple.md), [olo_base_cc_status](doc/base/olo_base_cc_status.md), [olo_base_cc_handshake](doc/base/olo_base_cc_handshake.md), [olo_base_fifo_async](doc/base/olo_base_fifo_async.md) | ✓ | + `SyncTmr_g` | Not yet proposed |
@@ -54,7 +61,7 @@ The fork changes these entities in three ways:
 entities.
 
 All new generics have defaults (`SyncTmr_g = false`, `SyncStages_g = 2`, `RamStyle_g = "auto"`), and no port or
-existing generic changed: code written for Open Logic 4.7.0 compiles against 4.7.0-ft.2 without changes.
+existing generic changed: code written for Open Logic 4.7.0 compiles against 4.7.0-ft.3 without changes.
 
 ## Identical in both
 
@@ -68,6 +75,7 @@ existing generic changed: code written for Open Logic 4.7.0 compiles against 4.7
 
 ## Summary
 
-Open Logic 4.7.0 has 94 public entities, 4.7.0-ft.2 has 101; the seven additional entities are all in the ft area.
+Open Logic 4.7.0 has 94 public entities, 4.7.0-ft.3 has 103; seven of the nine additional entities are in the ft
+area, the other two are `olo_base_chunker` and `olo_axi_lite_decoder`.
 24 existing entities of the other areas have new generics or a safe FSM. The fork has no separate fault-tolerant
 clock crossings: the synchronizers of the base and intf entities are triplicated through `SyncTmr_g`.

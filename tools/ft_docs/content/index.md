@@ -7,7 +7,8 @@ library of FPGA building blocks. It adds the _ft_ area: building blocks for desi
 spacecraft, where single event upsets flip bits in RAM cells and registers. The RAMs and FIFOs of the area are protected
 by a SECDED code (single error correction, double error detection). The synchronizers of the clock domain crossings,
 of the reset generator and of the input synchronizer are excluded from the automatic TMR of the synthesis tool and can
-be triplicated with majority voting (TMR).
+be triplicated with majority voting (TMR). Two general building blocks needed by the Open Space HDL cores complete the
+fork: a stream chunker and an AXI4-Lite register decoder.
 
 The fork is maintained by [Open Space HDL](https://openspacehdl.org). Finished entities go to upstream Open Logic, one
 pull request at a time; everything else in the fork is identical to Open Logic.
@@ -31,6 +32,8 @@ release and where each change stands upstream.
 | Delays | [olo_ft_delay](doc/ft/olo_ft_delay.md), [olo_ft_delay_cfg](doc/ft/olo_ft_delay_cfg.md) | Fork only |
 | AXI masters | [olo_ft_axi_master_simple](doc/ft/olo_ft_axi_master_simple.md), [olo_ft_axi_master_full](doc/ft/olo_ft_axi_master_full.md) | Fork only |
 | EDAC monitoring | [olo_ft_ecc_monitor](doc/ft/olo_ft_ecc_monitor.md), [olo_ft_ecc_monitor_axi](doc/ft/olo_ft_ecc_monitor_axi.md) | Fork only |
+| Stream chunking | [olo_base_chunker](doc/base/olo_base_chunker.md) | Fork only |
+| Register access decoder | [olo_axi_lite_decoder](doc/axi/olo_axi_lite_decoder.md) | Fork only |
 
 Where an ft entity has a _base_ counterpart, it keeps that interface and adds only what fault tolerance needs: error
 injection inputs, single and double error status outputs and the ECC pipeline settings.
@@ -48,11 +51,11 @@ base, intf, fix and axi entities have a safe recovery state.
 The fork replaces Open Logic in a project; the library name (`olo`), the compile order and the tool scripts are the
 same, see [How to](doc/HowTo.md). Projects include it as a git submodule and pin a tag. Tags are named
 `<upstream version>-ft.<n>` and mark a state of the branch `fault-tolerant` whose checks passed; the current one is
-`4.7.0-ft.2`.
+`4.7.0-ft.3`.
 
 ```shell
 git submodule add -b fault-tolerant https://github.com/open-space-hdl/open-logic-ft.git open-logic
-git -C open-logic checkout 4.7.0-ft.2
+git -C open-logic checkout 4.7.0-ft.3
 git add open-logic
 ```
 
@@ -68,7 +71,7 @@ Every push to `fault-tolerant` runs the workflow `FT-Backlog-Check`: GHDL simula
 area and the minimal set of the other areas, VSG linting, markdownlint and the check that every ft entity is part of
 the synthesis inference test. The SEU testbenches of the synchronizers force upsets into the registers of single chains:
 with `SyncTmr_g = true` the voted output is not affected, with a single synchronizer the upset is visible. The tag
-`4.7.0-ft.2` passed the full regression of the library (7761 tests) with GHDL.
+`4.7.0-ft.3` passed the full regression of the library (7961 tests) with GHDL.
 
 ## Technology readiness
 
