@@ -16,7 +16,8 @@ pull request at a time; everything else in the fork is identical to Open Logic.
 
 The cross-cutting concepts (codeword layout, error injection, status flags, ECC pipeline) are described once in the
 [fault-tolerance principles](doc/ft/olo_ft_principles.md). The [entity list](doc/EntityList.md#ft) describes every
-entity in one line.
+entity in one line. The [comparison with Open Logic 4.7.0](comparison.md) lists every entity that differs from the
+release and where each change stands upstream.
 
 | Group | Entities | Upstream Open Logic |
 | --- | --- | --- |
