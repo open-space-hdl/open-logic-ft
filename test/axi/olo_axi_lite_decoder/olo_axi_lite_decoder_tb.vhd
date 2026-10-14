@@ -323,7 +323,7 @@ begin
                     push_ar(net, AxiMaster_c, portAddr(p, 36));
                     expect_r(net, AxiMaster_c, testData(16#77#), resp => AxiResp_DecErr_c);
                     expect_ar(net, AxiSlaves_c(p), offsetAddr(36));
-                    push_r(net, AxiSlaves_c(p), testData(16#77#), resp => AxiResp_DecErr_c);
+                    push_r(net, AxiSlaves_c(p), testData(16#77#), error_code => AxiResp_DecErr_c);
                 end loop;
 
             end if;
