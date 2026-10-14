@@ -2,7 +2,9 @@ name: FT-Backlog-Check
 run-name: ${{ github.actor }} triggered FT Backlog Check
 
 # Fork-only workflow of open-space-hdl/open-logic-ft: checks every push to the fault-tolerant
-# backlog branch. It is never part of a pull request to open-logic/open-logic.
+# backlog branch and every pull request against it. The job names carry the prefix ft-backlog so
+# that branch protection can require them next to the upstream checks of the same pull request. The
+# workflow is never part of a pull request to open-logic/open-logic.
 
 # Set the permissions for the workflow
 permissions:
@@ -13,12 +15,15 @@ on:
   push:
     branches:
       - fault-tolerant
+  pull_request:
+    branches:
+      - fault-tolerant
   workflow_dispatch:
 
 #Jobs
 jobs:
   simulation:
-    name: simulation-ghdl-${{ matrix.area }}
+    name: ft-backlog-ghdl-${{ matrix.area }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -60,6 +65,7 @@ jobs:
           path: sim/sim_report_ghdl_${{ matrix.area }}.xml
 
   linting:
+    name: ft-backlog-vsg
     runs-on: ubuntu-latest
     steps:
       #General Setup
@@ -89,6 +95,7 @@ jobs:
             lint/report/vsg_vc_vhdl.xml
 
   markdown-lint:
+    name: ft-backlog-markdownlint
     runs-on: ubuntu-latest
     steps:
       #General Setup
@@ -102,6 +109,7 @@ jobs:
           config: '.markdownlint.json'
 
   check-synthesis-config:
+    name: ft-backlog-inference-coverage
     runs-on: ubuntu-latest
     steps:
       #General Setup
