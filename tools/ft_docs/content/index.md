@@ -68,9 +68,9 @@ git add open-logic
 
 ## Verification
 
-Every push to `fault-tolerant` runs the workflow `FT-Backlog-Check`: GHDL simulation of all configurations of the ft
-area and the minimal set of the other areas, VSG linting, markdownlint and the check that every ft entity is part of
-the synthesis inference test. The SEU testbenches of the synchronizers force upsets into the registers of single chains:
+Every push to `fault-tolerant` runs the workflow `FT-Backlog-Check`: GHDL simulation of all tests of all areas (the
+full regression), VSG linting, markdownlint and the check that every ft entity is part of the synthesis inference
+test. The SEU testbenches of the synchronizers force upsets into the registers of single chains:
 with `SyncTmr_g = true` the voted output is not affected, with a single synchronizer the upset is visible. The tag
 `4.7.0-ft.6` passed the full regression of the library (8354 tests) with GHDL.
 
