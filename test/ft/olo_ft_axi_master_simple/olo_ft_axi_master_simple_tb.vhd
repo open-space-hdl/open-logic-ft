@@ -23,6 +23,7 @@ library work;
 library olo;
     use olo.olo_base_pkg_math.all;
     use olo.olo_base_pkg_logic.all;
+    use olo.olo_axi_pkg_protocol.all;
     use olo.olo_ft_pkg_ecc.all;
 
 ---------------------------------------------------------------------------------------------------
@@ -481,6 +482,44 @@ begin
                     push_single_read(net, AxiSlave_c, x"3100", x"3C4D");
                     expectRdBeatFlipped(net, std_logic_vector(resize(unsigned'(x"3C4D"), AxiDataWidth_g)), '1',
                                         RdFlip_v, "Read DED beat");
+                    expectRdResponse(RespSuccess);
+                end if;
+
+            ---------------------------------------------------------------------------------------
+            elsif run("WriteRespErrorAllBursts") then
+                -- Both bursts of a transfer split at a 4k boundary end with SLVERR: Wr_Error is
+                -- reported, and the next write without error reports Wr_Done again.
+
+                if ImplWrite_g then
+                    expect_aw(net, AxiSlave_c, x"6000" - 2 * ByteWidth_c, len => 2);
+                    expect_w(net, AxiSlave_c, x"5A50", beats => 2);
+                    push_b(net, AxiSlave_c, resp => AxiResp_SlvErr_c);
+                    expect_aw(net, AxiSlave_c, x"6000", len => 6);
+                    expect_w(net, AxiSlave_c, x"5A52", beats => 6);
+                    push_b(net, AxiSlave_c, resp => AxiResp_SlvErr_c);
+                    pushCommand(net, WrCmdMaster_c, x"00006000" - 2 * ByteWidth_c, 8);
+                    pushWrData(net, x"5A50", 1, 8);
+                    expectWrResponse(RespError);
+                    expect_single_write(net, AxiSlave_c, x"0610", x"A5A5");
+                    pushCommand(net, WrCmdMaster_c, x"00000610", 1);
+                    pushWrData(net, x"A5A5");
+                    expectWrResponse(RespSuccess);
+                end if;
+
+            ---------------------------------------------------------------------------------------
+            elsif run("ReadRespErrorMidBurst") then
+                -- An error on a beat other than the last one of a burst reaches Rd_Error, and the
+                -- next read without error reports Rd_Done again.
+
+                if ImplRead_g then
+                    expect_ar(net, AxiSlave_c, x"0700", len => 4);
+                    push_r(net, AxiSlave_c, x"0700", beats => 4, error_code => AxiResp_SlvErr_c, error_beat => 1);
+                    pushCommand(net, RdCmdMaster_c, x"00000700", 4);
+                    expectRdData(net, x"0700", 1, 4);
+                    expectRdResponse(RespError);
+                    push_single_read(net, AxiSlave_c, x"0800", x"0BCD");
+                    pushCommand(net, RdCmdMaster_c, x"00000800", 1);
+                    expectRdData(net, x"0BCD");
                     expectRdResponse(RespSuccess);
                 end if;
 
