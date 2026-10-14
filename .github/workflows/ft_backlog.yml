@@ -24,7 +24,7 @@ on:
 jobs:
   simulation:
     name: ft-backlog-ghdl-${{ matrix.area }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -32,9 +32,9 @@ jobs:
     steps:
       #General Setup
       - name: Setup node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
       - name: Checkout repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           submodules: true
       #Setup environment
@@ -59,20 +59,20 @@ jobs:
           python3 run.py --ghdl $MINIMAL "olo_tb.olo_${{ matrix.area }}_*" --xunit-xml sim_report_ghdl_${{ matrix.area }}.xml -p 16
       - name: Upload sim results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: simulation-ghdl-${{ matrix.area }}-artifacts
           path: sim/sim_report_ghdl_${{ matrix.area }}.xml
 
   linting:
     name: ft-backlog-vsg
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       #General Setup
       - name: Setup node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
       - name: Checkout repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       #Setup environment
       - name: Setup environment
         uses: ./.github/actions/setup-environment
@@ -87,7 +87,7 @@ jobs:
       #Upload Linting results
       - name: Upload Linting results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linting-artifacts
           path: |
@@ -96,27 +96,32 @@ jobs:
 
   markdown-lint:
     name: ft-backlog-markdownlint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       #General Setup
       - name: Checkout repo
-        uses: actions/checkout@v5
-      #Run markdownlint
+        uses: actions/checkout@v7
+      #Run markdownlint. The action v24 brings markdownlint 0.41 with the new rule MD059 (descriptive link
+      #text); the upstream check md_check.yml still runs markdownlint 0.35 without it.
       - name: Run markdownlint
-        uses: DavidAnson/markdownlint-cli2-action@v17
+        uses: DavidAnson/markdownlint-cli2-action@v24
         with:
-          globs: '**/*.md'
+          #doc/intf/olo_intf_uart.md is upstream content and fails MD059 (link text "[here]"), md_check.yml
+          #lints it with the upstream settings. Remove the exclusion once upstream changes the link text.
+          globs: |
+            **/*.md
+            !doc/intf/olo_intf_uart.md
           config: '.markdownlint.json'
 
   check-synthesis-config:
     name: ft-backlog-inference-coverage
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       #General Setup
       - name: Setup node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
       - name: Checkout repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
       #Setup environment
       - name: Setup environment
         uses: ./.github/actions/setup-environment
