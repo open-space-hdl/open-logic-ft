@@ -52,11 +52,11 @@ base, intf, fix and axi entities have a safe recovery state.
 The fork replaces Open Logic in a project; the library name (`olo`), the compile order and the tool scripts are the
 same, see [How to](doc/HowTo.md). Projects include it as a git submodule and pin a tag. Tags are named
 `<upstream version>-ft.<n>` and mark a state of the branch `fault-tolerant` whose checks passed; the current one is
-`4.7.0-ft.4`.
+`4.7.0-ft.5`.
 
 ```shell
 git submodule add -b fault-tolerant https://github.com/open-space-hdl/open-logic-ft.git open-logic
-git -C open-logic checkout 4.7.0-ft.4
+git -C open-logic checkout 4.7.0-ft.5
 git add open-logic
 ```
 
@@ -72,7 +72,7 @@ Every push to `fault-tolerant` runs the workflow `FT-Backlog-Check`: GHDL simula
 area and the minimal set of the other areas, VSG linting, markdownlint and the check that every ft entity is part of
 the synthesis inference test. The SEU testbenches of the synchronizers force upsets into the registers of single chains:
 with `SyncTmr_g = true` the voted output is not affected, with a single synchronizer the upset is visible. The tag
-`4.7.0-ft.4` passed the full regression of the library (8058 tests) with GHDL.
+`4.7.0-ft.5` passed the full regression of the library (8330 tests) with GHDL.
 
 ## Technology readiness
 
