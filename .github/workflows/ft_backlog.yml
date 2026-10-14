@@ -50,7 +50,8 @@ jobs:
         with:
           version: latest
           backend: mcode
-      #Run Simulation: all configurations of the ft area, the minimal set of the other areas
+      #Run Simulation: all tests of the area. --minimal only limits the compilation to the files the tests of the
+      #area need (the ft area compiles all), so the five jobs together are the full regression of the library.
       - name: Run Simulation
         shell: bash
         run: |
