@@ -313,7 +313,7 @@ begin
                     if WrMax4kBeats_v > AxiMaxBeats_g then
                         v.WrMaxBeats := to_unsigned(AxiMaxBeats_g, BeatsBits_c);
                     else
-                        v.WrMaxBeats := WrMax4kBeats_v(BeatsBits_c - 1 downto 0);
+                        v.WrMaxBeats := resize(WrMax4kBeats_v, BeatsBits_c);
                     end if;
                     v.WriteTfGenState := GenTf_s;
 
@@ -322,7 +322,7 @@ begin
                         v.WrTfBeats  := r.WrMaxBeats;
                         v.WrTfIsLast := '0';
                     else
-                        v.WrTfBeats  := r.WrBeats(BeatsBits_c - 1 downto 0);
+                        v.WrTfBeats  := resize(r.WrBeats, BeatsBits_c);
                         v.WrTfIsLast := '1';
                     end if;
                     v.WrTfVld         := '1';
@@ -331,7 +331,7 @@ begin
                 when WriteTf_s =>
                     if (r.WrTfVld = '1') and (r.AwFsmRdy = '1') then
                         v.WrTfVld := '0';
-                        v.WrBeats := r.WrBeats - r.WrTfBeats;
+                        v.WrBeats := r.WrBeats - resize(r.WrTfBeats, r.WrBeats'length);
                         -- Shift at address width: natural * unsigned would truncate the bytes per beat to the width of WrTfBeats
                         v.WrAddr := r.WrAddr + shift_left(resize(r.WrTfBeats, v.WrAddr'length), UnusedAddrBits_c);
                         if r.WrTfIsLast = '1' then
@@ -505,7 +505,7 @@ begin
                     if RdMax4kBeats_v > AxiMaxBeats_g then
                         v.RdMaxBeats := to_unsigned(AxiMaxBeats_g, BeatsBits_c);
                     else
-                        v.RdMaxBeats := RdMax4kBeats_v(BeatsBits_c - 1 downto 0);
+                        v.RdMaxBeats := resize(RdMax4kBeats_v, BeatsBits_c);
                     end if;
                     v.ReadTfGenState := GenTf_s;
 
@@ -514,7 +514,7 @@ begin
                         v.RdTfBeats  := r.RdMaxBeats;
                         v.RdTfIsLast := '0';
                     else
-                        v.RdTfBeats  := r.RdBeats(BeatsBits_c - 1 downto 0);
+                        v.RdTfBeats  := resize(r.RdBeats, BeatsBits_c);
                         v.RdTfIsLast := '1';
                     end if;
                     v.RdTfVld        := '1';
@@ -523,7 +523,7 @@ begin
                 when WriteTf_s =>
                     if (r.RdTfVld = '1') and (r.ArFsmRdy = '1') then
                         v.RdTfVld := '0';
-                        v.RdBeats := r.RdBeats - r.RdTfBeats;
+                        v.RdBeats := r.RdBeats - resize(r.RdTfBeats, r.RdBeats'length);
                         -- Shift at address width: natural * unsigned would truncate the bytes per beat to the width of RdTfBeats
                         v.RdAddr := r.RdAddr + shift_left(resize(r.RdTfBeats, v.RdAddr'length), UnusedAddrBits_c);
                         if r.RdTfIsLast = '1' then
