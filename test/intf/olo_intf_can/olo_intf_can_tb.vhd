@@ -64,7 +64,10 @@ architecture sim of olo_intf_can_tb is
     -- synchronizer and edge detection, then the sample point of the bit
     constant ASample_c    : time := LoopDelay_c + ClkPeriod_c * 3 + BitTime_c * SampleFrac_c;
     -- Lag of the bits of a transmitting DUT behind its start of frame edge: it synchronizes to its own echo
-    -- (loop delay, synchronizer, edge detection) and drives through its output register
+    -- (loop delay, synchronizer, edge detection) and drives through its output register. The BFM, which has no delay
+    -- and does not resynchronize, drives its bits (acknowledge, forced bits) this much after its own grid, as a
+    -- receiver synchronized to the transmitter would; on its own grid, its acknowledge would reach the other nodes in
+    -- their CRC delimiter at short bit times (a correct form error).
     constant TxLag_c      : time := LoopDelay_c + ClkPeriod_c * 4;
     -- Width of the glitches of the synchronization tests: half a time quantum, at least a clock period
     constant Glitch_c     : time := maximum(Tq_c / 2, ClkPeriod_c);
@@ -198,7 +201,7 @@ begin
     -----------------------------------------------------------------------------------------------
     -- TB Control
     -----------------------------------------------------------------------------------------------
-    test_runner_watchdog(runner, 200 ms);
+    test_runner_watchdog(runner, BitTime_c * 200000);
 
     p_control : process is
         variable Frames_v : integer_array_t;
@@ -260,7 +263,7 @@ begin
         end procedure;
 
         -- Bus recessive for n consecutive bit times
-        procedure waitRecessive (n : real; timeout : time := 5 ms) is
+        procedure waitRecessive (n : real; timeout : time := BitTime_c * 5000) is
             variable Start_v : time;
         begin
             Start_v := now;
@@ -279,7 +282,11 @@ begin
 
         end procedure;
 
-        procedure waitCount (signal cnt : in natural; target : natural; msg : string; timeout : time := 2 ms) is
+        procedure waitCount (
+            signal cnt : in natural;
+            target     : natural;
+            msg        : string;
+            timeout    : time := BitTime_c * 2000) is
         begin
             if cnt < target then
                 wait until cnt >= target for timeout;
@@ -356,7 +363,7 @@ begin
             forceIdx : integer := -1;
             forceLen : natural := 1;
             sofTime  : time    := 0 ns;
-            timeout  : time    := 5 ms) is
+            timeout  : time    := BitTime_c * 5000) is
             variable Sof_v : time;
         begin
             if sofTime > 0 ns then
@@ -1370,6 +1377,27 @@ begin
                 waitBits(40.0);
                 check_equal(CntTxDoneA, 1, "no retransmission");
                 check_equal(TxReadyA, '1', "ready");
+
+            elsif run("LongBit") then
+                -- One frame each way and an error frame; with the configuration at the maxima of the runtime bit
+                -- timing (prescaler 1023, Cfg_Tseg1 31, Cfg_Tseg2 15) it checks the widths of the bit timing counters
+                waitRecessive(11.5);
+                F_v   := getFrame(Frames_v, 0);
+                txAtoBfm(F_v, "frame of A");
+                waitBits(3.0);
+                rxBfmToDut(getFrame(Frames_v, 18), "frame of the BFM");
+                waitBits(3.0);
+                Idx_v := findBit(F_v, 14, F_v.AckIdx - 3, '1');
+                pushTx(F_v);
+                bfmCapture(Idx_v + 1 + 6 + 8, -1, Capt_v, forceIdx => Idx_v);
+                checkBits(Capt_v, F_v.Bits, 0, Idx_v, "bits before the error");
+                checkLevel(Capt_v, Idx_v + 1, 6, '0', "error flag");
+                checkLevel(Capt_v, Idx_v + 7, 8, '1', "error delimiter");
+                checkStat(8, 0, "00", "after the bit error");
+                bfmCapture(F_v.NBits, F_v.AckIdx, Capt_v);
+                checkBits(Capt_v, F_v.Bits, 0, F_v.NBits, "retransmission");
+                waitCount(CntTxDoneA, 2, "Tx_Done");
+                checkStat(7, 0, "00", "after the retransmission");
 
             elsif run("Disable") then
                 waitRecessive(11.5);
