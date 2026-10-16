@@ -121,8 +121,10 @@ architecture sim of olo_ft_axi_master_full_tb is
     signal Rd_TUser          : std_logic_vector(1 downto 0);
     signal Wr_Done           : std_logic;
     signal Wr_Error          : std_logic;
+    signal Wr_ErrorResp      : std_logic_vector(1 downto 0);
     signal Rd_Done           : std_logic;
     signal Rd_Error          : std_logic;
+    signal Rd_ErrorResp      : std_logic_vector(1 downto 0);
     signal Wr_ErrInj_BitFlip : std_logic_vector(WrCodewordWid_c - 1 downto 0)           := (others => '0');
     signal Wr_ErrInj_Valid   : std_logic                                                := '0';
     signal Rd_ErrInj_BitFlip : std_logic_vector(RdCodewordWid_c - 1 downto 0)           := (others => '0');
@@ -238,30 +240,39 @@ architecture sim of olo_ft_axi_master_full_tb is
             tuser                                                                          => ExpSec_v & ExpDed_v, msg => msg);
     end procedure;
 
-    procedure expectWrResponse (Response : Response_t) is
+    -- Code: expected response code of a failed command (Wr_ErrorResp, Rd_ErrorResp)
+    procedure expectWrResponse (
+        Response : Response_t;
+        Code     : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c) is
     begin
         wait until rising_edge(Clk) and ((Wr_Done = '1') or (Wr_Error = '1'));
 
         if Response = RespSuccess then
             check_equal(Wr_Error, '0', "Wrong Wr_Error");
             check_equal(Wr_Done, '1', "Wrong Wr_Done");
+            check_equal(Wr_ErrorResp, AxiResp_Okay_c, "Wrong Wr_ErrorResp");
         else
             check_equal(Wr_Error, '1', "Wrong Wr_Error");
             check_equal(Wr_Done, '0', "Wrong Wr_Done");
+            check_equal(Wr_ErrorResp, Code, "Wrong Wr_ErrorResp");
         end if;
 
     end procedure;
 
-    procedure expectRdResponse (Response : Response_t) is
+    procedure expectRdResponse (
+        Response : Response_t;
+        Code     : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c) is
     begin
         wait until rising_edge(Clk) and ((Rd_Done = '1') or (Rd_Error = '1'));
 
         if Response = RespSuccess then
             check_equal(Rd_Error, '0', "Wrong Rd_Error");
             check_equal(Rd_Done, '1', "Wrong Rd_Done");
+            check_equal(Rd_ErrorResp, AxiResp_Okay_c, "Wrong Rd_ErrorResp");
         else
             check_equal(Rd_Error, '1', "Wrong Rd_Error");
             check_equal(Rd_Done, '0', "Wrong Rd_Done");
+            check_equal(Rd_ErrorResp, Code, "Wrong Rd_ErrorResp");
         end if;
 
     end procedure;
@@ -491,6 +502,31 @@ begin
                     expectRdResponse(RespSuccess);
                 end if;
 
+            ---------------------------------------------------------------------------------------
+            elsif run("WriteRespCode") then
+                -- The response code of a failed write passes the ft master unchanged
+
+                if ImplWrite_g then
+                    expect_aw(net, AxiSlave_c, x"0900");
+                    expect_w(net, AxiSlave_c, x"1357");
+                    push_b(net, AxiSlave_c, resp => AxiResp_DecErr_c);
+                    pushCommand(net, WrCmdMaster_c, x"00000900", ByteWidth_c);
+                    pushWrData(net, x"1357");
+                    expectWrResponse(RespError, AxiResp_DecErr_c);
+                end if;
+
+            ---------------------------------------------------------------------------------------
+            elsif run("ReadRespCode") then
+                -- The response code of a failed read passes the ft master unchanged
+
+                if ImplRead_g then
+                    expect_ar(net, AxiSlave_c, x"0A00");
+                    push_r(net, AxiSlave_c, x"2468", error_code => AxiResp_DecErr_c);
+                    pushCommand(net, RdCmdMaster_c, x"00000A00", ByteWidth_c);
+                    expectRdData(net, x"2468");
+                    expectRdResponse(RespError, AxiResp_DecErr_c);
+                end if;
+
             end if;
 
             wait_until_idle(net, as_sync(AxiSlave_c));
@@ -575,8 +611,10 @@ begin
             Rd_EccDed         => Rd_EccDed,
             Wr_Done           => Wr_Done,
             Wr_Error          => Wr_Error,
+            Wr_ErrorResp      => Wr_ErrorResp,
             Rd_Done           => Rd_Done,
             Rd_Error          => Rd_Error,
+            Rd_ErrorResp      => Rd_ErrorResp,
             Wr_ErrInj_BitFlip => Wr_ErrInj_BitFlip,
             Wr_ErrInj_Valid   => Wr_ErrInj_Valid,
             Rd_ErrInj_BitFlip => Rd_ErrInj_BitFlip,
