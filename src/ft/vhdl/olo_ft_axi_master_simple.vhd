@@ -78,8 +78,10 @@ entity olo_ft_axi_master_simple is
         -- Response
         Wr_Done           : out   std_logic;
         Wr_Error          : out   std_logic;
+        Wr_ErrorResp      : out   std_logic_vector(1 downto 0);
         Rd_Done           : out   std_logic;
         Rd_Error          : out   std_logic;
+        Rd_ErrorResp      : out   std_logic_vector(1 downto 0);
         -- Error injection (latched, applied to the next accepted beat of the respective buffer)
         Wr_ErrInj_BitFlip : in    std_logic_vector(eccCodewordWidth(AxiDataWidth_g + AxiDataWidth_g / 8) - 1 downto 0) := (others => '0');
         Wr_ErrInj_Valid   : in    std_logic                                                                            := '0';
@@ -281,8 +283,10 @@ begin
             Rd_Ready      => MRd_Ready,
             Wr_Done       => Wr_Done,
             Wr_Error      => Wr_Error,
+            Wr_ErrorResp  => Wr_ErrorResp,
             Rd_Done       => Rd_Done,
             Rd_Error      => Rd_Error,
+            Rd_ErrorResp  => Rd_ErrorResp,
             M_Axi_AwAddr  => M_Axi_AwAddr,
             M_Axi_AwLen   => M_Axi_AwLen,
             M_Axi_AwSize  => M_Axi_AwSize,

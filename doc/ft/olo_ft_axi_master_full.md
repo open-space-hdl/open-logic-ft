@@ -36,7 +36,8 @@ Differences and additions:
 
 ## Interfaces
 
-The command, response, write-data, read-data and AXI interfaces are identical to
+The command, response (including the response codes _Wr_ErrorResp_ and _Rd_ErrorResp_), write-data,
+read-data and AXI interfaces are identical to
 [olo_axi_master_full](../axi/olo_axi_master_full.md). Additional ft ports:
 
 ### Error Status
