@@ -31,14 +31,14 @@ library work;
 -- vunit: run_all_in_same_sim
 entity olo_axi_master_full_tb is
     generic (
-        AxiAddrWidth_g              : natural range 12 to 64 := 32;
-        AxiDataWidth_g              : natural range 8 to 64  := 32;
-        UserDataWidth_g             : natural                := 16;
-        AxiMaxBeats_g               : natural range 1 to 256 := 32;
-        ImplRead_g                  : boolean                := true;
-        ImplWrite_g                 : boolean                := true;
-        RamBehavior_g               : string                 := "RBW";
-        UserTransactionSizeBits_g   : natural                := 10;
+        AxiAddrWidth_g              : natural range 12 to 64  := 32;
+        AxiDataWidth_g              : natural range 8 to 1024 := 32;
+        UserDataWidth_g             : natural                 := 16;
+        AxiMaxBeats_g               : natural range 1 to 256  := 32;
+        ImplRead_g                  : boolean                 := true;
+        ImplWrite_g                 : boolean                 := true;
+        RamBehavior_g               : string                  := "RBW";
+        UserTransactionSizeBits_g   : natural                 := 10;
         runner_cfg                  : string
     );
 end entity;
@@ -79,8 +79,12 @@ architecture sim of olo_axi_master_full_tb is
     subtype CmdSizeRange_c is natural range UserTransactionSizeBits_g+CmdAddrRange_c'high downto CmdAddrRange_c'high+1;
     constant CmdLowLat_c : natural := CmdSizeRange_c'high+1;
 
-    constant UserBytes_c : natural := UserDataWidth_g/8;
-    constant AxiBytes_c  : natural := AxiDataWidth_g/8;
+    constant UserBytes_c  : natural := UserDataWidth_g/8;
+    constant AxiBytes_c   : natural := AxiDataWidth_g/8;
+    -- Step of the offset and size loops: every value up to 64-bit data, a sample for wider data
+    constant LoopStep_c   : natural := maximum(1, AxiBytes_c/8);
+    -- Commands of SplitBeats_c AXI beats are split into at least two bursts (at AxiMaxBeats_g or at 4 KB)
+    constant SplitBeats_c : natural := minimum(AxiMaxBeats_g, 4096/AxiBytes_c)+2;
 
     -----------------------------------------------------------------------------------------------
     -- TB Defnitions
@@ -304,7 +308,7 @@ architecture sim of olo_axi_master_full_tb is
         return Strb_v;
     end function;
 
-    -- Expect the AXI transactions of a write, split into bursts of at most AxiMaxBeats_g beats
+    -- Expect the AXI transactions of a write, split into bursts of at most AxiMaxBeats_g beats within 4 KB
     -- The B responses of the bursts errBurst and errBurst2 (0 = first, -1 = none) are errCode and errCode2.
     procedure expectAxiWrite (
         signal net : inout network_t;
@@ -324,17 +328,22 @@ architecture sim of olo_axi_master_full_tb is
         variable Beats_v    : natural;
         variable Burst_v    : natural          := 0;
         variable Resp_v     : std_logic_vector(1 downto 0);
+        variable To4k_v     : natural;
+        variable BurstAdr_v : unsigned(AxiAddrWidth_g-1 downto 0);
     begin
 
         -- loop through bursts
         while Beat_v < AxiBeats_c loop
-            Beats_v := minimum(AxiBeats_c-Beat_v, AxiMaxBeats_g);
+            -- AXI bursts must not cross a 4 KB boundary
+            BurstAdr_v := axiWordAddr(address)+Beat_v*AxiBytes_c;
+            To4k_v     := (4096 - to_integer(BurstAdr_v(11 downto 0)))/AxiBytes_c;
+            Beats_v    := minimum(minimum(AxiBeats_c-Beat_v, AxiMaxBeats_g), To4k_v);
             expect_aw (net, AxiSlave_c, axiWordAddr(address)+Beat_v*AxiBytes_c, len => Beats_v, burst => AxiBurst_Incr_c);
             expect_w_arbitrary (net, AxiSlave_c, Beats_v,
                                 resize(shift_right(Data_c, Beat_v*AxiDataWidth_g), Beats_v*AxiDataWidth_g),
                                 std_logic_vector(resize(shift_right(unsigned(Strb_c), Beat_v*AxiBytes_c), Beats_v*AxiBytes_c)),
                                 delay => delay, beat_delay => beatDelay);
-            Resp_v  := AxiResp_Okay_c;
+            Resp_v     := AxiResp_Okay_c;
             if Burst_v = errBurst then
                 Resp_v := errCode;
             elsif Burst_v = errBurst2 then
@@ -347,7 +356,7 @@ architecture sim of olo_axi_master_full_tb is
 
     end procedure;
 
-    -- Push the AXI transactions of a read, split into bursts of at most AxiMaxBeats_g beats
+    -- Push the AXI transactions of a read, split into bursts of at most AxiMaxBeats_g beats within 4 KB
     -- The AXI beats errBeat and errBeat2 of the transfer (0 = first, -1 = none, in different bursts) respond with
     -- errCode and errCode2.
     procedure pushAxiRead (
@@ -365,13 +374,18 @@ architecture sim of olo_axi_master_full_tb is
         variable Beats_v    : natural;
         variable Code_v     : std_logic_vector(1 downto 0);
         variable ErrBeat_v  : integer;
+        variable To4k_v     : natural;
+        variable BurstAdr_v : unsigned(AxiAddrWidth_g-1 downto 0);
     begin
 
         -- loop through bursts
         while Beat_v < AxiBeats_c loop
-            Beats_v   := minimum(AxiBeats_c-Beat_v, AxiMaxBeats_g);
-            Code_v    := AxiResp_Okay_c;
-            ErrBeat_v := -1;
+            -- AXI bursts must not cross a 4 KB boundary
+            BurstAdr_v := axiWordAddr(address)+Beat_v*AxiBytes_c;
+            To4k_v     := (4096 - to_integer(BurstAdr_v(11 downto 0)))/AxiBytes_c;
+            Beats_v    := minimum(minimum(AxiBeats_c-Beat_v, AxiMaxBeats_g), To4k_v);
+            Code_v     := AxiResp_Okay_c;
+            ErrBeat_v  := -1;
             if errBeat >= Beat_v and errBeat < Beat_v+Beats_v then
                 Code_v    := errCode;
                 ErrBeat_v := errBeat-Beat_v;
@@ -472,17 +486,18 @@ begin
                 if ImplWrite_g then
 
                     -- Loop through different offsets / alignments
-                    for addrOffs in 0 to AxiBytes_c-1 loop
+                    for OffsIdx in 0 to (AxiBytes_c-1)/LoopStep_c loop
 
                         -- Loop through transfer sizes
-                        for dataBytes in 2*AxiBytes_c to 3*AxiBytes_c-1 loop
-                            Addr_v      := resize(x"0800"+addrOffs, AxiAddrWidth_g);
-                            Data_v      := resize(x"10"+dataBytes, UserDataWidth_g);
-                            UserBeats_v := (dataBytes+UserBytes_c-1)/UserBytes_c;
+                        for SizeIdx in 0 to (AxiBytes_c-1)/LoopStep_c loop
+                            DataBytes_v := 2*AxiBytes_c+SizeIdx*LoopStep_c;
+                            Addr_v      := resize(x"0800"+OffsIdx*LoopStep_c, AxiAddrWidth_g);
+                            Data_v      := resize(x"10"+DataBytes_v, UserDataWidth_g);
+                            UserBeats_v := (DataBytes_v+UserBytes_c-1)/UserBytes_c;
                             -- Slave
-                            expectAxiWrite(net, Addr_v, Data_v, dataBytes);
+                            expectAxiWrite(net, Addr_v, Data_v, DataBytes_v);
                             -- Master
-                            pushCommand(net, WrCmdMaster_c, Addr_v, dataBytes);
+                            pushCommand(net, WrCmdMaster_c, Addr_v, DataBytes_v);
                             pushWrData(net, Data_v, beats => UserBeats_v);
                             -- Blocking
                             expectWrResponse(RespSuccess);
@@ -546,17 +561,18 @@ begin
                 if ImplRead_g then
 
                     -- Loop through different offsets / alignments
-                    for addrOffs in 0 to AxiBytes_c-1 loop
+                    for OffsIdx in 0 to (AxiBytes_c-1)/LoopStep_c loop
 
                         -- Loop through transfer sizes
-                        for dataBytes in 2*AxiBytes_c to 3*AxiBytes_c-1 loop
-                            Addr_v      := resize(x"1800"+addrOffs, AxiAddrWidth_g);
-                            Data_v      := resize(x"20"+dataBytes, UserDataWidth_g);
-                            UserBeats_v := (dataBytes+UserBytes_c-1)/UserBytes_c;
+                        for SizeIdx in 0 to (AxiBytes_c-1)/LoopStep_c loop
+                            DataBytes_v := 2*AxiBytes_c+SizeIdx*LoopStep_c;
+                            Addr_v      := resize(x"1800"+OffsIdx*LoopStep_c, AxiAddrWidth_g);
+                            Data_v      := resize(x"20"+DataBytes_v, UserDataWidth_g);
+                            UserBeats_v := (DataBytes_v+UserBytes_c-1)/UserBytes_c;
                             -- Slave
-                            pushAxiRead(net, Addr_v, Data_v, dataBytes);
+                            pushAxiRead(net, Addr_v, Data_v, DataBytes_v);
                             -- Master
-                            pushCommand(net, RdCmdMaster_c, Addr_v, dataBytes);
+                            pushCommand(net, RdCmdMaster_c, Addr_v, DataBytes_v);
                             -- Blocking
                             expectRdResponse(RespSuccess);
                             expectRdData(net, Data_v, beats => UserBeats_v);
@@ -592,7 +608,7 @@ begin
             end if;
 
             -- *** Response codes ***
-            -- Commands of AxiMaxBeats_g+2 AXI beats are split into at least two bursts
+            -- Commands of SplitBeats_c AXI beats are split into at least two bursts
             if run("Write-SlvErr") then
                 if ImplWrite_g then
                     -- Slave
@@ -609,7 +625,7 @@ begin
 
             if run("Write-DecErrNonLastBurst") then
                 if ImplWrite_g then
-                    DataBytes_v := (AxiMaxBeats_g+2)*AxiBytes_c;
+                    DataBytes_v := SplitBeats_c*AxiBytes_c;
                     -- Slave
                     Addr_v := resize(x"0400", AxiAddrWidth_g);
                     Data_v := resize(x"20", UserDataWidth_g);
@@ -624,7 +640,7 @@ begin
 
             if run("Write-TwoErrors") then
                 if ImplWrite_g then
-                    DataBytes_v := (AxiMaxBeats_g+2)*AxiBytes_c;
+                    DataBytes_v := SplitBeats_c*AxiBytes_c;
                     -- Slave: DECERR on the first burst, SLVERR on the second, the first one is reported
                     Addr_v := resize(x"0400", AxiAddrWidth_g);
                     Data_v := resize(x"30", UserDataWidth_g);
@@ -660,7 +676,7 @@ begin
 
             if run("Read-DecErrNonLastBeat") then
                 if ImplRead_g then
-                    DataBytes_v := (AxiMaxBeats_g+2)*AxiBytes_c;
+                    DataBytes_v := SplitBeats_c*AxiBytes_c;
                     -- Slave
                     Addr_v := resize(x"0400", AxiAddrWidth_g);
                     Data_v := resize(x"20", UserDataWidth_g);
@@ -675,11 +691,11 @@ begin
 
             if run("Read-TwoErrors") then
                 if ImplRead_g then
-                    DataBytes_v := (AxiMaxBeats_g+2)*AxiBytes_c;
+                    DataBytes_v := SplitBeats_c*AxiBytes_c;
                     -- Slave: DECERR on the first beat, SLVERR on the last beat, the first one is reported
                     Addr_v := resize(x"0400", AxiAddrWidth_g);
                     Data_v := resize(x"30", UserDataWidth_g);
-                    pushAxiRead(net, Addr_v, Data_v, DataBytes_v, errBeat => 0, errCode => AxiResp_DecErr_c, errBeat2 => AxiMaxBeats_g+1);
+                    pushAxiRead(net, Addr_v, Data_v, DataBytes_v, errBeat => 0, errCode => AxiResp_DecErr_c, errBeat2 => SplitBeats_c-1);
                     -- Master
                     pushCommand(net, RdCmdMaster_c, X"0400", DataBytes_v, CmdLowLat => '1');
                     expectRdData(net, X"30", 1, DataBytes_v/UserBytes_c);
@@ -692,6 +708,35 @@ begin
                     pushCommand(net, RdCmdMaster_c, X"0100", AxiBytes_c);
                     expectRdData(net, X"40", 1, AxiBytes_c/UserBytes_c);
                     expectRdResponse(RespSuccess);
+                end if;
+            end if;
+
+            -- Two writes of the largest command size, 2**UserTransactionSizeBits_g-1 bytes (the user word count is a power of
+            -- two and needs one bit more than the size without its low bits): both complete (up to 10 size bits)
+            if run("WriteMaxSizeTwice") then
+                if ImplWrite_g and UserTransactionSizeBits_g <= 10 then
+                    DataBytes_v := 2**UserTransactionSizeBits_g-1;
+                    UserBeats_v := (DataBytes_v+UserBytes_c-1)/UserBytes_c;
+
+                    for i in 0 to 1 loop
+                        Addr_v := resize(x"10000"+i*2**UserTransactionSizeBits_g, AxiAddrWidth_g);
+                        Data_v := resize(x"10"+i*16, UserDataWidth_g);
+                        expectAxiWrite(net, Addr_v, Data_v, DataBytes_v);
+                        pushCommand(net, WrCmdMaster_c, Addr_v, DataBytes_v, CmdLowLat => '1');
+                        pushWrData(net, Data_v, beats => UserBeats_v);
+                    end loop;
+
+                    expectWrResponse(RespSuccess);
+                    expectWrResponse(RespSuccess);
+                    -- The master is idle and accepts a further command
+                    wait until rising_edge(Clk);
+                    check_equal(CmdWr_Ready, '1', "CmdWr_Ready after the largest commands");
+                    Addr_v := resize(x"0100", AxiAddrWidth_g);
+                    Data_v := resize(x"55", UserDataWidth_g);
+                    expectAxiWrite(net, Addr_v, Data_v, AxiBytes_c);
+                    pushCommand(net, WrCmdMaster_c, Addr_v, AxiBytes_c);
+                    pushWrData(net, Data_v, beats => AxiBytes_c/UserBytes_c);
+                    expectWrResponse(RespSuccess);
                 end if;
             end if;
 
