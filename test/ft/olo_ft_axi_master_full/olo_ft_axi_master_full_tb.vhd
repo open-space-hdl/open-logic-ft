@@ -33,9 +33,10 @@ library olo;
 entity olo_ft_axi_master_full_tb is
     generic (
         runner_cfg     : string;
-        AxiDataWidth_g : natural range 16 to 64 := 32;
-        ImplRead_g     : boolean                := true;
-        ImplWrite_g    : boolean                := true
+        AxiDataWidth_g : natural range 16 to 1024 := 32;
+        AxiMaxBeats_g  : natural range 1 to 256   := 16;
+        ImplRead_g     : boolean                  := true;
+        ImplWrite_g    : boolean                  := true
     );
 end entity;
 
@@ -48,15 +49,18 @@ architecture sim of olo_ft_axi_master_full_tb is
     -- the base entity, so the user width equals the AXI width here.
     constant UserDataWidth_c           : natural := AxiDataWidth_g;
     constant AxiAddrWidth_c            : natural := 32;
-    constant UserTransactionSizeBits_c : natural := 10;
-    constant AxiMaxBeats_c             : natural := 16;
+    -- Command sizes are bytes: wide data needs more size bits for transfers of several beats
+    constant UserTransactionSizeBits_c : natural := choose(AxiDataWidth_g > 64, 14, 10);
+    constant AxiMaxBeats_c             : natural := AxiMaxBeats_g;
     constant AxiMaxOpenTransactions_c  : natural := 2;
     constant DataFifoDepth_c           : natural := 64;
 
     -----------------------------------------------------------------------------------------------
     -- AXI Definition
     -----------------------------------------------------------------------------------------------
-    constant ByteWidth_c : integer := AxiDataWidth_g / 8;
+    constant ByteWidth_c    : integer := AxiDataWidth_g / 8;
+    -- Beats of a transfer from 2 words before a 4 KB boundary over it with a full burst and 2 more words
+    constant Split4kBeats_c : natural := 2 + minimum(AxiMaxBeats_c, 4096 / ByteWidth_c) + 2;
 
     subtype IdRange_c   is natural range -1 downto 0;
     subtype AddrRange_c is natural range AxiAddrWidth_c - 1 downto 0;
@@ -277,6 +281,92 @@ architecture sim of olo_ft_axi_master_full_tb is
 
     end procedure;
 
+    -- Data of beats AXI words incrementing from startValue (the first word at the low end)
+    function burstData (
+        startValue : unsigned;
+        beats      : natural) return unsigned is
+        variable Data_v : unsigned(beats*AxiDataWidth_g-1 downto 0);
+        variable Word_v : unsigned(AxiDataWidth_g-1 downto 0);
+    begin
+        Word_v := resize(startValue, AxiDataWidth_g);
+
+        for i in 0 to beats-1 loop
+            Data_v((i+1)*AxiDataWidth_g-1 downto i*AxiDataWidth_g) := Word_v;
+            Word_v                                                 := Word_v+1;
+        end loop;
+
+        return Data_v;
+    end function;
+
+    -- Expect a write of the given bytes from an aligned address (data incrementing per word), split into bursts of at
+    -- most AxiMaxBeats_c beats that do not cross a 4 KB boundary; a partial last word has only its bytes enabled
+    procedure expectWriteSplit (
+        signal net : inout network_t;
+        addr       : unsigned;
+        startValue : unsigned;
+        bytes      : natural) is
+        variable Addr_v  : unsigned(AxiAddrWidth_c-1 downto 0);
+        variable Data_v  : unsigned(AxiDataWidth_g-1 downto 0);
+        variable Left_v  : natural := (bytes+ByteWidth_c-1)/ByteWidth_c;
+        variable Beats_v : natural;
+        variable To4k_v  : natural;
+        variable Strb_v  : std_logic_vector(AxiMaxBeats_c*ByteWidth_c-1 downto 0);
+    begin
+        Addr_v := resize(addr, AxiAddrWidth_c);
+        Data_v := resize(startValue, AxiDataWidth_g);
+
+        while Left_v > 0 loop
+            To4k_v  := (4096-to_integer(Addr_v(11 downto 0)))/ByteWidth_c;
+            Beats_v := minimum(minimum(Left_v, AxiMaxBeats_c), To4k_v);
+            if Beats_v = Left_v and bytes mod ByteWidth_c /= 0 then
+
+                for b in 0 to Beats_v*ByteWidth_c-1 loop
+                    if b < (Beats_v-1)*ByteWidth_c+bytes mod ByteWidth_c then
+                        Strb_v(b) := '1';
+                    else
+                        Strb_v(b) := '0';
+                    end if;
+                end loop;
+
+                expect_aw(net, AxiSlave_c, Addr_v, len => Beats_v);
+                expect_w_arbitrary(net, AxiSlave_c, Beats_v, burstData(Data_v, Beats_v), Strb_v(Beats_v*ByteWidth_c-1 downto 0));
+                push_b(net, AxiSlave_c);
+            else
+                expect_burst_write_aligned(net, AxiSlave_c, Addr_v, Data_v, 1, Beats_v);
+            end if;
+            Addr_v := Addr_v+Beats_v*ByteWidth_c;
+            Data_v := Data_v+Beats_v;
+            Left_v := Left_v-Beats_v;
+        end loop;
+
+    end procedure;
+
+    -- Push a read of beats AXI words from an aligned address, split like expectWriteSplit
+    procedure pushReadSplit (
+        signal net : inout network_t;
+        addr       : unsigned;
+        startValue : unsigned;
+        beats      : natural) is
+        variable Addr_v  : unsigned(AxiAddrWidth_c-1 downto 0);
+        variable Data_v  : unsigned(AxiDataWidth_g-1 downto 0);
+        variable Left_v  : natural := beats;
+        variable Beats_v : natural;
+        variable To4k_v  : natural;
+    begin
+        Addr_v := resize(addr, AxiAddrWidth_c);
+        Data_v := resize(startValue, AxiDataWidth_g);
+
+        while Left_v > 0 loop
+            To4k_v  := (4096-to_integer(Addr_v(11 downto 0)))/ByteWidth_c;
+            Beats_v := minimum(minimum(Left_v, AxiMaxBeats_c), To4k_v);
+            push_burst_read_aligned(net, AxiSlave_c, Addr_v, Data_v, 1, Beats_v);
+            Addr_v  := Addr_v+Beats_v*ByteWidth_c;
+            Data_v  := Data_v+Beats_v;
+            Left_v  := Left_v-Beats_v;
+        end loop;
+
+    end procedure;
+
 begin
 
     -----------------------------------------------------------------------------------------------
@@ -349,24 +439,27 @@ begin
                 -- wrapped master: proves the external ECC buffer streams through the small
                 -- internal FIFO across burst boundaries without throughput deadlock.
 
-                if ImplWrite_g then
-                    pushCommand(net, WrCmdMaster_c, x"00004000", 40 * ByteWidth_c);
-                    pushWrData(net, x"0500", 1, 40);
-                    expect_burst_write_aligned(net, AxiSlave_c, x"4000", x"0500", 1, 16);
-                    expect_burst_write_aligned(net, AxiSlave_c, x"4000" + 16 * ByteWidth_c, x"0510", 1, 16);
-                    expect_burst_write_aligned(net, AxiSlave_c, x"4000" + 32 * ByteWidth_c, x"0520", 1, 8);
-                    expectWrResponse(RespSuccess);
-                    check_equal(WrSecCnt, 0, "WrSecCnt");
-                    check_equal(WrDedCnt, 0, "WrDedCnt");
-                end if;
+                -- The expected bursts are written out for bursts of 16 beats
+                if AxiMaxBeats_c = 16 then
+                    if ImplWrite_g then
+                        pushCommand(net, WrCmdMaster_c, x"00004000", 40 * ByteWidth_c);
+                        pushWrData(net, x"0500", 1, 40);
+                        expect_burst_write_aligned(net, AxiSlave_c, x"4000", x"0500", 1, 16);
+                        expect_burst_write_aligned(net, AxiSlave_c, x"4000" + 16 * ByteWidth_c, x"0510", 1, 16);
+                        expect_burst_write_aligned(net, AxiSlave_c, x"4000" + 32 * ByteWidth_c, x"0520", 1, 8);
+                        expectWrResponse(RespSuccess);
+                        check_equal(WrSecCnt, 0, "WrSecCnt");
+                        check_equal(WrDedCnt, 0, "WrDedCnt");
+                    end if;
 
-                if ImplRead_g then
-                    pushCommand(net, RdCmdMaster_c, x"00005000", 40 * ByteWidth_c);
-                    push_burst_read_aligned(net, AxiSlave_c, x"5000", x"0900", 1, 16);
-                    push_burst_read_aligned(net, AxiSlave_c, x"5000" + 16 * ByteWidth_c, x"0910", 1, 16);
-                    push_burst_read_aligned(net, AxiSlave_c, x"5000" + 32 * ByteWidth_c, x"0920", 1, 8);
-                    expectRdData(net, x"0900", 1, 40);
-                    expectRdResponse(RespSuccess);
+                    if ImplRead_g then
+                        pushCommand(net, RdCmdMaster_c, x"00005000", 40 * ByteWidth_c);
+                        push_burst_read_aligned(net, AxiSlave_c, x"5000", x"0900", 1, 16);
+                        push_burst_read_aligned(net, AxiSlave_c, x"5000" + 16 * ByteWidth_c, x"0910", 1, 16);
+                        push_burst_read_aligned(net, AxiSlave_c, x"5000" + 32 * ByteWidth_c, x"0920", 1, 8);
+                        expectRdData(net, x"0900", 1, 40);
+                        expectRdResponse(RespSuccess);
+                    end if;
                 end if;
 
             ---------------------------------------------------------------------------------------
@@ -479,8 +572,8 @@ begin
                     pushCommand(net, WrCmdMaster_c, x"00006000" - 2 * ByteWidth_c, 8 * ByteWidth_c);
                     pushWrData(net, x"5A50", 1, 8);
                     expectWrResponse(RespError);
-                    expect_single_write(net, AxiSlave_c, x"0610", x"A5A5");
-                    pushCommand(net, WrCmdMaster_c, x"00000610", ByteWidth_c);
+                    expect_single_write(net, AxiSlave_c, x"0680", x"A5A5");
+                    pushCommand(net, WrCmdMaster_c, x"00000680", ByteWidth_c);
                     pushWrData(net, x"A5A5");
                     expectWrResponse(RespSuccess);
                 end if;
@@ -525,6 +618,48 @@ begin
                     pushCommand(net, RdCmdMaster_c, x"00000A00", ByteWidth_c);
                     expectRdData(net, x"2468");
                     expectRdResponse(RespError, AxiResp_DecErr_c);
+                end if;
+
+            ---------------------------------------------------------------------------------------
+            elsif run("Burst4kBoundary") then
+                -- A transfer that reaches a 4 KB boundary and crosses it with a burst of the full burst
+                -- length within 4 KB (the beat counter of the wrapped master at its widest)
+
+                if ImplWrite_g then
+                    pushCommand(net, WrCmdMaster_c, x"00003000" - 2 * ByteWidth_c, Split4kBeats_c * ByteWidth_c, CmdLowLat => '1');
+                    pushWrData(net, x"0700", 1, Split4kBeats_c);
+                    expectWriteSplit(net, x"00003000" - 2 * ByteWidth_c, x"0700", Split4kBeats_c * ByteWidth_c);
+                    expectWrResponse(RespSuccess);
+                end if;
+                if ImplRead_g then
+                    pushCommand(net, RdCmdMaster_c, x"00007000" - 2 * ByteWidth_c, Split4kBeats_c * ByteWidth_c, CmdLowLat => '1');
+                    pushReadSplit(net, x"00007000" - 2 * ByteWidth_c, x"0800", Split4kBeats_c);
+                    expectRdData(net, x"0800", 1, Split4kBeats_c);
+                    expectRdResponse(RespSuccess);
+                end if;
+
+            ---------------------------------------------------------------------------------------
+            elsif run("WriteMaxSizeTwice") then
+                -- Two writes of the largest command size (2**UserTransactionSizeBits_c-1 bytes, a partial last
+                -- word): both complete
+
+                if ImplWrite_g then
+
+                    for i in 0 to 1 loop
+                        pushCommand(net, WrCmdMaster_c, x"00010000" + i * 1024, 2**UserTransactionSizeBits_c - 1, CmdLowLat => '1');
+                        pushWrData(net, x"0900" + i * 256, 1, (2**UserTransactionSizeBits_c + ByteWidth_c - 2) / ByteWidth_c);
+                        expectWriteSplit(net, x"00010000" + i * 1024, x"0900" + i * 256, 2**UserTransactionSizeBits_c - 1);
+                    end loop;
+
+                    expectWrResponse(RespSuccess);
+                    expectWrResponse(RespSuccess);
+                    -- The master is idle and accepts a further command
+                    wait until rising_edge(Clk);
+                    check_equal(CmdWr_Ready, '1', "CmdWr_Ready after the largest commands");
+                    expect_single_write(net, AxiSlave_c, x"0100", x"55AA");
+                    pushCommand(net, WrCmdMaster_c, x"00000100", ByteWidth_c);
+                    pushWrData(net, x"55AA");
+                    expectWrResponse(RespSuccess);
                 end if;
 
             end if;
