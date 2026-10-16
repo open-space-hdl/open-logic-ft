@@ -9,11 +9,10 @@
 library ieee;
     use ieee.std_logic_1164.all;
     use ieee.numeric_std.all;
+    use ieee.math_real.all;
 
 library vunit_lib;
     context vunit_lib.vunit_context;
-    context vunit_lib.com_context;
-    context vunit_lib.vc_context;
 
 library olo;
     use olo.olo_base_pkg_math.all;
@@ -22,7 +21,8 @@ library olo;
 ---------------------------------------------------------------------------------------------------
 -- Entity
 ---------------------------------------------------------------------------------------------------
--- Stimuli and expected outputs come from the Python model (cosim.py).
+-- Stimuli and expected outputs come from the Python model (cosim.py). The streams are driven and checked
+-- directly from the model files (no message queues), so the memory of the bench does not grow.
 -- vunit: run_all_in_same_sim
 entity olo_base_rs_decode_tb is
     generic (
@@ -56,37 +56,24 @@ architecture sim of olo_base_rs_decode_tb is
     constant Continuous_c : positive := 4 * InterleaveDepth_g * CodewordSymbols_g;
     -- Condition for continuous operation (documentation): I*n >= I*(2t+3) + 2t + 3
     constant ContOk_c     : boolean := InterleaveDepth_g * CodewordSymbols_g >= InterleaveDepth_g * (2 * T_c + 3) + 2 * T_c + 3;
-
-    -- *** Verification Components ***
-    constant AxisMaster_c : axi_stream_master_t := new_axi_stream_master (
-        data_length  => SymbolWidth_g,
-        stall_config => new_stall_config(choose(RandomStall_g, 0.5, 0.0), 0, 10)
-    );
-    -- The TDATA check of the VUnit slave compares whole bytes only (VUnit issue #1238): pad the symbols to bytes
-    constant VcWidth_c    : positive           := 8 * ((SymbolWidth_g + 7) / 8);
-    constant AxisSlave_c  : axi_stream_slave_t := new_axi_stream_slave (
-        data_length  => VcWidth_c,
-        user_length  => 1,
-        stall_config => new_stall_config(choose(RandomStall_g, 0.5, 0.0), 0, 10)
-    );
+    -- Random stalls: before a beat, with probability StallProb_c, for 0 ... StallMax_c clock cycles
+    constant StallProb_c  : real    := choose(RandomStall_g, 0.5, 0.0);
+    constant StallMax_c   : natural := 10;
 
     -----------------------------------------------------------------------------------------------
     -- Interface Signals
     -----------------------------------------------------------------------------------------------
-    signal Clk                  : std_logic := '0';
-    signal Rst                  : std_logic := '1';
-    signal In_Valid             : std_logic;
+    signal Clk                  : std_logic                                    := '0';
+    signal Rst                  : std_logic                                    := '1';
+    signal In_Valid             : std_logic                                    := '0';
     signal In_Ready             : std_logic;
-    signal In_Data              : std_logic_vector(SymbolWidth_g - 1 downto 0);
-    signal In_Last              : std_logic;
+    signal In_Data              : std_logic_vector(SymbolWidth_g - 1 downto 0) := (others => '0');
+    signal In_Last              : std_logic                                    := '0';
     signal Out_Valid            : std_logic;
     signal Out_Ready            : std_logic;
     signal Out_Data             : std_logic_vector(SymbolWidth_g - 1 downto 0);
     signal Out_Parity           : std_logic;
     signal Out_Last             : std_logic;
-    signal Out_DataVc           : std_logic_vector(VcWidth_c - 1 downto 0);
-    signal Out_ValidVc          : std_logic;
-    signal Out_ReadyVc          : std_logic;
     signal Status_Valid         : std_logic;
     signal Status_Last          : std_logic;
     signal Status_Corrected     : std_logic_vector(CntBits_c - 1 downto 0);
@@ -98,57 +85,58 @@ architecture sim of olo_base_rs_decode_tb is
     signal OutHold      : std_logic := '0';
     signal HoldEna      : boolean   := false;
     signal InputCount   : natural   := 0;
+    signal OutputCount  : natural   := 0;
     signal InStallCount : natural   := 0;
+    -- Stream driver and checker: request (incremented by p_control) and acknowledge (set when done)
+    signal StimReq      : natural   := 0;
+    signal StimAck      : natural   := 0;
+    signal StimCount    : integer   := -1;
+    signal CheckReq     : natural   := 0;
+    signal CheckAck     : natural   := 0;
+    signal CheckReady   : std_logic := '0';
 
     -----------------------------------------------------------------------------------------------
     -- Procedures
     -----------------------------------------------------------------------------------------------
-    -- Push the received symbols of the model (dec_in.csv: symbol, last), at most count symbols (-1: all)
-    procedure pushInput (
-        signal net : inout network_t;
-        count      : in    integer := -1) is
+    -- Random stall length (0 if no stall)
+    procedure stallCycles (
+        variable seed1  : inout positive;
+        variable seed2  : inout positive;
+        variable cycles : out natural) is
+        variable Rnd_v : real;
+    begin
+        uniform(seed1, seed2, Rnd_v);
+        cycles := 0;
+        if Rnd_v < StallProb_c then
+            uniform(seed1, seed2, Rnd_v);
+            cycles := integer(floor(Rnd_v * real(StallMax_c + 1)));
+        end if;
+    end procedure;
+
+    -- Start the stream driver (and the checker if checkOut) and wait until both are done
+    procedure runStreams (
+        signal stimReq  : inout natural;
+        signal checkReq : inout natural;
+        signal stimAck  : in    natural;
+        signal checkAck : in    natural;
+        checkOut        : in    boolean := true) is
+    begin
+        stimReq <= stimReq + 1;
+        if checkOut then
+            checkReq <= checkReq + 1;
+        end if;
+        wait until stimAck = stimReq and checkAck = checkReq;
+    end procedure;
+
+    -- Number of rows of a model file
+    impure function csvRows (file_name : string) return natural is
         variable Vec_v  : integer_array_t;
         variable Rows_v : natural;
-        variable Data_v : std_logic_vector(SymbolWidth_g - 1 downto 0);
-        variable Last_v : std_logic;
     begin
-        Vec_v  := load_csv(output_path & "dec_in.csv");
+        Vec_v  := load_csv(output_path & file_name);
         Rows_v := height(Vec_v);
-        if count >= 0 and count < Rows_v then
-            Rows_v := count;
-        end if;
-
-        for i in 0 to Rows_v - 1 loop
-            Data_v := toUslv(get(Vec_v, 0, i), SymbolWidth_g);
-            Last_v := choose(get(Vec_v, 1, i) = 1, '1', '0');
-            push_axi_stream(net, AxisMaster_c, Data_v, tlast => Last_v);
-        end loop;
-
-    end procedure;
-
-    -- Expect the output symbols of the model (dec_out.csv: symbol, check symbol, last)
-    procedure expectOutput (
-        signal net : inout network_t) is
-        variable Vec_v  : integer_array_t;
-        variable Data_v : std_logic_vector(VcWidth_c - 1 downto 0);
-        variable User_v : std_logic_vector(0 downto 0);
-        variable Last_v : std_logic;
-    begin
-        Vec_v := load_csv(output_path & "dec_out.csv");
-
-        for i in 0 to height(Vec_v) - 1 loop
-            Data_v := toUslv(get(Vec_v, 0, i), VcWidth_c);
-            User_v := toUslv(get(Vec_v, 1, i), 1);
-            Last_v := choose(get(Vec_v, 2, i) = 1, '1', '0');
-            check_axi_stream(net, AxisSlave_c, Data_v, tlast => Last_v, tuser => User_v, blocking => false, msg => "symbol " & integer'image(i));
-        end loop;
-
-    end procedure;
-
-    -- Number of status entries of the model (dec_status.csv: corrected, uncorrectable, last, blocks with output)
-    impure function statusEntries return natural is
-    begin
-        return height(load_csv(output_path & "dec_status.csv"));
+        deallocate(Vec_v);
+        return Rows_v;
     end function;
 
 begin
@@ -159,6 +147,7 @@ begin
     test_runner_watchdog(runner, 100 ms);
 
     p_control : process is
+        variable Entries_v : natural;
     begin
         test_runner_setup(runner, runner_cfg);
 
@@ -175,44 +164,48 @@ begin
 
             -- Check the block sequence of the model: data, check symbols and status
             if run("ModelVectors") then
-                pushInput(net);
-                expectOutput(net);
+                StimCount <= -1;
+                runStreams(StimReq, CheckReq, StimAck, CheckAck);
 
             -- A reset in the middle of a block discards the block
             elsif run("ResetMidBlock") then
-                pushInput(net, 5);
-                wait_until_idle(net, as_sync(AxisMaster_c));
+                StimCount <= 5;
+                runStreams(StimReq, CheckReq, StimAck, CheckAck, false);
                 wait for 200 ns;
                 wait until rising_edge(Clk);
-                Rst <= '1';
+                Rst       <= '1';
                 wait until rising_edge(Clk);
-                Rst <= '0';
-                pushInput(net);
-                expectOutput(net);
+                Rst       <= '0';
+                StimCount <= -1;
+                runStreams(StimReq, CheckReq, StimAck, CheckAck);
 
             -- Long output stalls at the start and near the end of the blocks
             elsif run("OutputStall") then
-                HoldEna <= true;
-                pushInput(net);
-                expectOutput(net);
+                HoldEna   <= true;
+                StimCount <= -1;
+                runStreams(StimReq, CheckReq, StimAck, CheckAck);
 
             -- Equal full blocks are accepted without a gap if the documented condition holds (without random stalls)
             elsif run("Continuous") then
-                pushInput(net);
-                expectOutput(net);
-                wait until InputCount >= Continuous_c;
+                StimCount <= -1;
+                runStreams(StimReq, CheckReq, StimAck, CheckAck);
                 if not RandomStall_g and ContOk_c then
                     check_equal(InStallCount, 0, "In_Ready low during equal full blocks");
                 end if;
             end if;
 
-            -- Wait for idle and all status pulses
-            wait_until_idle(net, as_sync(AxisMaster_c));
-            wait_until_idle(net, as_sync(AxisSlave_c));
-            wait until StatusCount = statusEntries for 1 ms;
-            check_equal(StatusCount, statusEntries, "number of status pulses");
+            -- Wait for all status pulses
+            -- Status entries of the model (dec_status.csv: corrected, uncorrectable, last, blocks with output)
+            Entries_v := csvRows("dec_status.csv");
+            if StatusCount /= Entries_v then
+                wait until StatusCount = Entries_v for 1 ms;
+            end if;
+            check_equal(StatusCount, Entries_v, "number of status pulses");
             wait for 1 us;
-            check_equal(StatusCount, statusEntries, "no further status pulses");
+            check_equal(StatusCount, Entries_v, "no further status pulses");
+            -- Every symbol of the model passed the decoder
+            check_equal(InputCount, csvRows("dec_in.csv"), "number of input symbols");
+            check_equal(OutputCount, csvRows("dec_out.csv"), "number of output symbols");
 
         end loop;
 
@@ -221,11 +214,92 @@ begin
     end process;
 
     -----------------------------------------------------------------------------------------------
+    -- Stream driver: received symbols of the model (dec_in.csv: symbol, last)
+    -----------------------------------------------------------------------------------------------
+    p_stim : process is
+        variable Vec_v    : integer_array_t;
+        variable Loaded_v : boolean  := false;
+        variable Rows_v   : natural;
+        variable Stall_v  : natural;
+        variable Seed1_v  : positive := 1;
+        variable Seed2_v  : positive := 2;
+    begin
+        wait on StimReq;
+        if not Loaded_v then
+            Vec_v    := load_csv(output_path & "dec_in.csv");
+            Loaded_v := true;
+        end if;
+        Rows_v := height(Vec_v);
+        if StimCount >= 0 and StimCount < Rows_v then
+            Rows_v := StimCount;
+        end if;
+
+        for i in 0 to Rows_v - 1 loop
+            stallCycles(Seed1_v, Seed2_v, Stall_v);
+            if Stall_v > 0 then
+                In_Valid <= '0';
+
+                for c in 1 to Stall_v loop
+                    wait until rising_edge(Clk);
+                end loop;
+
+            end if;
+            In_Valid <= '1';
+            In_Data  <= toUslv(get(Vec_v, 0, i), SymbolWidth_g);
+            In_Last  <= choose(get(Vec_v, 1, i) = 1, '1', '0');
+            wait until rising_edge(Clk) and In_Ready = '1';
+        end loop;
+
+        In_Valid <= '0';
+        StimAck  <= StimReq;
+    end process;
+
+    -----------------------------------------------------------------------------------------------
+    -- Stream checker: output symbols of the model (dec_out.csv: symbol, check symbol, last)
+    -----------------------------------------------------------------------------------------------
+    p_check : process is
+        variable Vec_v    : integer_array_t;
+        variable Loaded_v : boolean  := false;
+        variable Stall_v  : natural;
+        variable Seed1_v  : positive := 3;
+        variable Seed2_v  : positive := 4;
+    begin
+        wait on CheckReq;
+        if not Loaded_v then
+            Vec_v    := load_csv(output_path & "dec_out.csv");
+            Loaded_v := true;
+        end if;
+
+        for i in 0 to height(Vec_v) - 1 loop
+            stallCycles(Seed1_v, Seed2_v, Stall_v);
+            if Stall_v > 0 then
+                CheckReady <= '0';
+
+                for c in 1 to Stall_v loop
+                    wait until rising_edge(Clk);
+                end loop;
+
+            end if;
+            CheckReady <= '1';
+            wait until rising_edge(Clk) and Out_Valid = '1' and Out_Ready = '1';
+            check_equal(Out_Data, toUslv(get(Vec_v, 0, i), SymbolWidth_g), "Out_Data, symbol " & integer'image(i));
+            check_equal(Out_Parity, choose(get(Vec_v, 1, i) = 1, '1', '0'), "Out_Parity, symbol " & integer'image(i));
+            check_equal(Out_Last, choose(get(Vec_v, 2, i) = 1, '1', '0'), "Out_Last, symbol " & integer'image(i));
+        end loop;
+
+        -- Further output symbols are accepted and counted (number of output symbols at the end of the test)
+        CheckAck <= CheckReq;
+    end process;
+
+    Out_Ready <= CheckReady and not OutHold;
+
+    -----------------------------------------------------------------------------------------------
     -- Status checker
     -----------------------------------------------------------------------------------------------
     -- Values, pulses of a block on consecutive cycles, no status before the Out_Last of its block was accepted
     p_status : process (Clk) is
         variable Vec_v     : integer_array_t;
+        variable Loaded_v  : boolean := false;
         variable Idx_v     : natural := 0;
         variable InBlock_v : boolean := false;
     begin
@@ -235,8 +309,9 @@ begin
                 InBlock_v   := false;
                 StatusCount <= 0;
             elsif Status_Valid = '1' then
-                if Idx_v = 0 then
-                    Vec_v := load_csv(output_path & "dec_status.csv");
+                if not Loaded_v then
+                    Vec_v    := load_csv(output_path & "dec_status.csv");
+                    Loaded_v := true;
                 end if;
                 if Idx_v < height(Vec_v) then
                     check_equal(to_integer(unsigned(Status_Corrected)), get(Vec_v, 0, Idx_v), "Status_Corrected " & integer'image(Idx_v));
@@ -292,14 +367,18 @@ begin
         end if;
     end process;
 
-    -- Accepted Out_Last symbols
+    -- Accepted output symbols and Out_Last symbols
     p_outlast : process (Clk) is
     begin
         if rising_edge(Clk) then
             if Rst = '1' then
+                OutputCount  <= 0;
                 OutLastCount <= 0;
-            elsif Out_Valid = '1' and Out_Ready = '1' and Out_Last = '1' then
-                OutLastCount <= OutLastCount + 1;
+            elsif Out_Valid = '1' and Out_Ready = '1' then
+                OutputCount <= OutputCount + 1;
+                if Out_Last = '1' then
+                    OutLastCount <= OutLastCount + 1;
+                end if;
             end if;
         end if;
     end process;
@@ -357,38 +436,6 @@ begin
             Status_Last          => Status_Last,
             Status_Corrected     => Status_Corrected,
             Status_Uncorrectable => Status_Uncorrectable
-        );
-
-    -----------------------------------------------------------------------------------------------
-    -- Verification Components
-    -----------------------------------------------------------------------------------------------
-    vc_stimuli : entity vunit_lib.axi_stream_master
-        generic map (
-            Master => AxisMaster_c
-        )
-        port map (
-            Aclk   => Clk,
-            TValid => In_Valid,
-            TReady => In_Ready,
-            TData  => In_Data,
-            TLast  => In_Last
-        );
-
-    Out_DataVc  <= std_logic_vector(resize(unsigned(Out_Data), VcWidth_c));
-    Out_ValidVc <= Out_Valid and not OutHold;
-    Out_Ready   <= Out_ReadyVc and not OutHold;
-
-    vc_response : entity vunit_lib.axi_stream_slave
-        generic map (
-            Slave => AxisSlave_c
-        )
-        port map (
-            Aclk     => Clk,
-            TValid   => Out_ValidVc,
-            TReady   => Out_ReadyVc,
-            TData    => Out_DataVc,
-            TLast    => Out_Last,
-            TUser(0) => Out_Parity
         );
 
 end architecture;
