@@ -11,3 +11,4 @@ pexpect
 jinja2
 pytest
 pytest-cov
+reedsolo
