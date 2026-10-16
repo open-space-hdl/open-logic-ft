@@ -120,8 +120,10 @@ architecture sim of olo_axi_master_full_tb is
     -- Response
     signal Wr_Done      : std_logic;
     signal Wr_Error     : std_logic;
+    signal Wr_ErrorResp : std_logic_vector(1 downto 0);
     signal Rd_Done      : std_logic;
     signal Rd_Error     : std_logic;
+    signal Rd_ErrorResp : std_logic_vector(1 downto 0);
 
     -----------------------------------------------------------------------------------------------
     -- TB Defnitions
@@ -206,29 +208,37 @@ architecture sim of olo_axi_master_full_tb is
 
     end procedure;
 
-    -- Expect Write Response
-    procedure expectWrResponse (Response : Response_t) is
+    -- Expect Write Response (Code: expected Wr_ErrorResp of a failed command)
+    procedure expectWrResponse (
+        Response : Response_t;
+        Code     : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c) is
     begin
         wait until rising_edge(Clk) and ((Wr_Done = '1') or (Wr_Error = '1'));
         if Response = RespSuccess then
             check_equal(Wr_Error, '0', "Wrong Wr_Error");
             check_equal(Wr_Done, '1', "Wrong Wr_Done");
+            check_equal(Wr_ErrorResp, AxiResp_Okay_c, "Wrong Wr_ErrorResp");
         else
             check_equal(Wr_Error, '1', "Wrong Wr_Error");
             check_equal(Wr_Done, '0', "Wrong Wr_Done");
+            check_equal(Wr_ErrorResp, Code, "Wrong Wr_ErrorResp");
         end if;
     end procedure;
 
-    -- Expect Read Response
-    procedure expectRdResponse (Response : Response_t) is
+    -- Expect Read Response (Code: expected Rd_ErrorResp of a failed command)
+    procedure expectRdResponse (
+        Response : Response_t;
+        Code     : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c) is
     begin
         wait until rising_edge(Clk) and ((Rd_Done = '1') or (Rd_Error = '1'));
         if Response = RespSuccess then
             check_equal(Rd_Error, '0', "Wrong Rd_Error");
             check_equal(Rd_Done, '1', "Wrong Rd_Done");
+            check_equal(Rd_ErrorResp, AxiResp_Okay_c, "Wrong Rd_ErrorResp");
         else
             check_equal(Rd_Error, '1', "Wrong Rd_Error");
             check_equal(Rd_Done, '0', "Wrong Rd_Done");
+            check_equal(Rd_ErrorResp, Code, "Wrong Rd_ErrorResp");
         end if;
     end procedure;
 
@@ -295,18 +305,25 @@ architecture sim of olo_axi_master_full_tb is
     end function;
 
     -- Expect the AXI transactions of a write, split into bursts of at most AxiMaxBeats_g beats
+    -- The B responses of the bursts errBurst and errBurst2 (0 = first, -1 = none) are errCode and errCode2.
     procedure expectAxiWrite (
         signal net : inout network_t;
         address    : unsigned;
         startValue : unsigned;
         bytes      : natural;
-        delay      : time := 0 ns;
-        beatDelay  : time := 0 ns) is
+        delay      : time                         := 0 ns;
+        beatDelay  : time                         := 0 ns;
+        errBurst   : integer                      := -1;
+        errCode    : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c;
+        errBurst2  : integer                      := -1;
+        errCode2   : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c) is
         constant AxiBeats_c : natural          := to_integer(axiWordAddr(address+bytes-1)-axiWordAddr(address))/AxiBytes_c+1;
         constant Data_c     : unsigned         := dataAsVectorAligned(address, startValue, bytes => bytes);
         constant Strb_c     : std_logic_vector := strbAsVectorAligned(address, bytes);
         variable Beat_v     : natural          := 0;
         variable Beats_v    : natural;
+        variable Burst_v    : natural          := 0;
+        variable Resp_v     : std_logic_vector(1 downto 0);
     begin
 
         -- loop through bursts
@@ -317,30 +334,56 @@ architecture sim of olo_axi_master_full_tb is
                                 resize(shift_right(Data_c, Beat_v*AxiDataWidth_g), Beats_v*AxiDataWidth_g),
                                 std_logic_vector(resize(shift_right(unsigned(Strb_c), Beat_v*AxiBytes_c), Beats_v*AxiBytes_c)),
                                 delay => delay, beat_delay => beatDelay);
-            push_b(net, AxiSlave_c, resp => AxiResp_Okay_c);
+            Resp_v  := AxiResp_Okay_c;
+            if Burst_v = errBurst then
+                Resp_v := errCode;
+            elsif Burst_v = errBurst2 then
+                Resp_v := errCode2;
+            end if;
+            push_b(net, AxiSlave_c, resp => Resp_v);
             Beat_v  := Beat_v + Beats_v;
+            Burst_v := Burst_v + 1;
         end loop;
 
     end procedure;
 
     -- Push the AXI transactions of a read, split into bursts of at most AxiMaxBeats_g beats
+    -- The AXI beats errBeat and errBeat2 of the transfer (0 = first, -1 = none, in different bursts) respond with
+    -- errCode and errCode2.
     procedure pushAxiRead (
         signal net : inout network_t;
         address    : unsigned;
         startValue : unsigned;
-        bytes      : natural) is
+        bytes      : natural;
+        errBeat    : integer                      := -1;
+        errCode    : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c;
+        errBeat2   : integer                      := -1;
+        errCode2   : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c) is
         constant AxiBeats_c : natural  := to_integer(axiWordAddr(address+bytes-1)-axiWordAddr(address))/AxiBytes_c+1;
         constant Data_c     : unsigned := dataAsVectorAligned(address, startValue, bytes => bytes);
         variable Beat_v     : natural  := 0;
         variable Beats_v    : natural;
+        variable Code_v     : std_logic_vector(1 downto 0);
+        variable ErrBeat_v  : integer;
     begin
 
         -- loop through bursts
         while Beat_v < AxiBeats_c loop
-            Beats_v := minimum(AxiBeats_c-Beat_v, AxiMaxBeats_g);
+            Beats_v   := minimum(AxiBeats_c-Beat_v, AxiMaxBeats_g);
+            Code_v    := AxiResp_Okay_c;
+            ErrBeat_v := -1;
+            if errBeat >= Beat_v and errBeat < Beat_v+Beats_v then
+                Code_v    := errCode;
+                ErrBeat_v := errBeat-Beat_v;
+                check(errBeat2 < Beat_v or errBeat2 >= Beat_v+Beats_v, "pushAxiRead: both errors in one burst");
+            elsif errBeat2 >= Beat_v and errBeat2 < Beat_v+Beats_v then
+                Code_v    := errCode2;
+                ErrBeat_v := errBeat2-Beat_v;
+            end if;
             expect_ar (net, AxiSlave_c, axiWordAddr(address)+Beat_v*AxiBytes_c, len => Beats_v, burst => AxiBurst_Incr_c);
-            push_r_arbitrary (net, AxiSlave_c, Beats_v, resize(shift_right(Data_c, Beat_v*AxiDataWidth_g), Beats_v*AxiDataWidth_g));
-            Beat_v  := Beat_v + Beats_v;
+            push_r_arbitrary (net, AxiSlave_c, Beats_v, resize(shift_right(Data_c, Beat_v*AxiDataWidth_g), Beats_v*AxiDataWidth_g),
+                              error_code => Code_v, error_beat => ErrBeat_v);
+            Beat_v := Beat_v + Beats_v;
         end loop;
 
     end procedure;
@@ -548,6 +591,125 @@ begin
                 end if;
             end if;
 
+            -- *** Response codes ***
+            -- Commands of AxiMaxBeats_g+2 AXI beats are split into at least two bursts
+            if run("Write-SlvErr") then
+                if ImplWrite_g then
+                    -- Slave
+                    Addr_v := resize(x"0100", AxiAddrWidth_g);
+                    Data_v := resize(x"10", UserDataWidth_g);
+                    expectAxiWrite(net, Addr_v, Data_v, AxiBytes_c, errBurst => 0, errCode => AxiResp_SlvErr_c);
+                    -- Master
+                    pushCommand(net, WrCmdMaster_c, X"0100", AxiBytes_c);
+                    pushWrData(net, X"10", 1, AxiBytes_c/UserBytes_c);
+                    -- Blocking
+                    expectWrResponse(RespError, AxiResp_SlvErr_c);
+                end if;
+            end if;
+
+            if run("Write-DecErrNonLastBurst") then
+                if ImplWrite_g then
+                    DataBytes_v := (AxiMaxBeats_g+2)*AxiBytes_c;
+                    -- Slave
+                    Addr_v := resize(x"0400", AxiAddrWidth_g);
+                    Data_v := resize(x"20", UserDataWidth_g);
+                    expectAxiWrite(net, Addr_v, Data_v, DataBytes_v, errBurst => 0, errCode => AxiResp_DecErr_c);
+                    -- Master
+                    pushCommand(net, WrCmdMaster_c, X"0400", DataBytes_v, CmdLowLat => '1');
+                    pushWrData(net, X"20", 1, DataBytes_v/UserBytes_c);
+                    -- Blocking
+                    expectWrResponse(RespError, AxiResp_DecErr_c);
+                end if;
+            end if;
+
+            if run("Write-TwoErrors") then
+                if ImplWrite_g then
+                    DataBytes_v := (AxiMaxBeats_g+2)*AxiBytes_c;
+                    -- Slave: DECERR on the first burst, SLVERR on the second, the first one is reported
+                    Addr_v := resize(x"0400", AxiAddrWidth_g);
+                    Data_v := resize(x"30", UserDataWidth_g);
+                    expectAxiWrite(net, Addr_v, Data_v, DataBytes_v, errBurst => 0, errCode => AxiResp_DecErr_c, errBurst2 => 1, errCode2 => AxiResp_SlvErr_c);
+                    -- Master
+                    pushCommand(net, WrCmdMaster_c, X"0400", DataBytes_v, CmdLowLat => '1');
+                    pushWrData(net, X"30", 1, DataBytes_v/UserBytes_c);
+                    -- Blocking
+                    expectWrResponse(RespError, AxiResp_DecErr_c);
+                    -- The next write without error reports success and no code
+                    Addr_v := resize(x"0100", AxiAddrWidth_g);
+                    Data_v := resize(x"40", UserDataWidth_g);
+                    expectAxiWrite(net, Addr_v, Data_v, AxiBytes_c);
+                    pushCommand(net, WrCmdMaster_c, X"0100", AxiBytes_c);
+                    pushWrData(net, X"40", 1, AxiBytes_c/UserBytes_c);
+                    expectWrResponse(RespSuccess);
+                end if;
+            end if;
+
+            if run("Read-SlvErrLastBeat") then
+                if ImplRead_g then
+                    -- Slave
+                    Addr_v := resize(x"0100", AxiAddrWidth_g);
+                    Data_v := resize(x"10", UserDataWidth_g);
+                    pushAxiRead(net, Addr_v, Data_v, AxiBytes_c, errBeat => 0, errCode => AxiResp_SlvErr_c);
+                    -- Master
+                    pushCommand(net, RdCmdMaster_c, X"0100", AxiBytes_c);
+                    expectRdData(net, X"10", 1, AxiBytes_c/UserBytes_c);
+                    -- Blocking
+                    expectRdResponse(RespError, AxiResp_SlvErr_c);
+                end if;
+            end if;
+
+            if run("Read-DecErrNonLastBeat") then
+                if ImplRead_g then
+                    DataBytes_v := (AxiMaxBeats_g+2)*AxiBytes_c;
+                    -- Slave
+                    Addr_v := resize(x"0400", AxiAddrWidth_g);
+                    Data_v := resize(x"20", UserDataWidth_g);
+                    pushAxiRead(net, Addr_v, Data_v, DataBytes_v, errBeat => 0, errCode => AxiResp_DecErr_c);
+                    -- Master
+                    pushCommand(net, RdCmdMaster_c, X"0400", DataBytes_v, CmdLowLat => '1');
+                    expectRdData(net, X"20", 1, DataBytes_v/UserBytes_c);
+                    -- Blocking
+                    expectRdResponse(RespError, AxiResp_DecErr_c);
+                end if;
+            end if;
+
+            if run("Read-TwoErrors") then
+                if ImplRead_g then
+                    DataBytes_v := (AxiMaxBeats_g+2)*AxiBytes_c;
+                    -- Slave: DECERR on the first beat, SLVERR on the last beat, the first one is reported
+                    Addr_v := resize(x"0400", AxiAddrWidth_g);
+                    Data_v := resize(x"30", UserDataWidth_g);
+                    pushAxiRead(net, Addr_v, Data_v, DataBytes_v, errBeat => 0, errCode => AxiResp_DecErr_c, errBeat2 => AxiMaxBeats_g+1);
+                    -- Master
+                    pushCommand(net, RdCmdMaster_c, X"0400", DataBytes_v, CmdLowLat => '1');
+                    expectRdData(net, X"30", 1, DataBytes_v/UserBytes_c);
+                    -- Blocking
+                    expectRdResponse(RespError, AxiResp_DecErr_c);
+                    -- The next read without error reports success and no code
+                    Addr_v := resize(x"0100", AxiAddrWidth_g);
+                    Data_v := resize(x"40", UserDataWidth_g);
+                    pushAxiRead(net, Addr_v, Data_v, AxiBytes_c);
+                    pushCommand(net, RdCmdMaster_c, X"0100", AxiBytes_c);
+                    expectRdData(net, X"40", 1, AxiBytes_c/UserBytes_c);
+                    expectRdResponse(RespSuccess);
+                end if;
+            end if;
+
+            -- The masters never request exclusive access: EXOKAY is a failure
+            if run("Read-ExOkay") then
+                if ImplRead_g then
+                    -- Slave
+                    Addr_v := resize(x"0100", AxiAddrWidth_g);
+                    Data_v := resize(x"50", UserDataWidth_g);
+                    pushAxiRead(net, Addr_v, Data_v, AxiBytes_c, errBeat => 0, errCode => AxiResp_ExOkay_c);
+                    -- Master
+                    pushCommand(net, RdCmdMaster_c, X"0100", AxiBytes_c);
+                    expectRdData(net, X"50", 1, AxiBytes_c/UserBytes_c);
+                    -- Blocking
+                    expectRdResponse(RespError, AxiResp_ExOkay_c);
+                end if;
+            end if;
+
             -- Wait for idle
             wait_until_idle(net, as_sync(AxiSlave_c));
             wait_until_idle(net, as_sync(RdDataSlave_c));
@@ -560,6 +722,26 @@ begin
 
         -- TB done
         test_runner_cleanup(runner);
+    end process;
+
+    -----------------------------------------------------------------------------------------------
+    -- Response code checker: "00" outside the error pulses (after the first reset)
+    -----------------------------------------------------------------------------------------------
+    p_errresp : process (Clk) is
+        variable WasReset_v : boolean := false;
+    begin
+        if rising_edge(Clk) then
+            if Rst = '1' then
+                WasReset_v := true;
+            elsif WasReset_v then
+                if ImplWrite_g and Wr_Error /= '1' then
+                    check_equal(Wr_ErrorResp, AxiResp_Okay_c, "Wr_ErrorResp outside Wr_Error");
+                end if;
+                if ImplRead_g and Rd_Error /= '1' then
+                    check_equal(Rd_ErrorResp, AxiResp_Okay_c, "Rd_ErrorResp outside Rd_Error");
+                end if;
+            end if;
+        end if;
     end process;
 
     -----------------------------------------------------------------------------------------------
@@ -612,8 +794,10 @@ begin
             -- Response
             Wr_Done        => Wr_Done,
             Wr_Error       => Wr_Error,
+            Wr_ErrorResp   => Wr_ErrorResp,
             Rd_Done        => Rd_Done,
             Rd_Error       => Rd_Error,
+            Rd_ErrorResp   => Rd_ErrorResp,
             -- AXI Address Write Channel
             M_Axi_AwAddr   => AxiMs.aw_addr,
             M_Axi_AwValid  => AxiMs.aw_valid,
