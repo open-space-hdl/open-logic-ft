@@ -140,6 +140,9 @@ vu.add_compile_option('nvc.a_flags', ['--relaxed'])
 # Test bench configurations
 ########################################################################################################################
 
+# NVC heap size of all test benches; set before the configurations so that a test bench can override it
+olo_tb.set_sim_option('nvc.heap_size', '5000M')
+
 # Load all TB configs. For the exact configurations, see the test_configs folder.
 for area in [olo_base, olo_axi, olo_intf, olo_fix, olo_ft]:
     area.add_configs(olo_tb)
@@ -164,7 +167,6 @@ if args.compile_list:
     exit(0)
 
 olo_tb.set_sim_option('ghdl.elab_flags', ['-frelaxed'])
-olo_tb.set_sim_option('nvc.heap_size', '5000M')
 
 # Disable IEEE numeric_std warnings to avoid slow simulation speed due to X-propagation
 olo_tb.set_sim_option('ghdl.sim_flags', ['--ieee-asserts=disable'])
