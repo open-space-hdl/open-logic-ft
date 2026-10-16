@@ -115,7 +115,7 @@ The FIFO can be optimized for two targets.
 | In_Ready     | out    | 1         | N/A     | AXI4-Stream handshaking signal for _In_Data_ |
 | In_Last      | in     | 1         | '1'     | AXI4-Stream end of packet signaling for _In_Data_ |
 | In_Drop      | in     | 1         | '0'     | Assert this signal for dropping the current packet (not storing it in the FIFO). |
-| In_IsDropped | out    | 1         | N/A     | Indicates that the current packet is dropped. Either because _In_Drop_ was asserted during the packet or because the packet exceeds the _Depth_g_ of the FIFO. |
+| In_IsDropped | out    | 1         | N/A     | Indicates that the current packet is dropped. Either because _In_Drop_ was asserted during the packet or because the packet exceeds the _Depth_g_ of the FIFO or _MaxPacketSize_g_ (if not -1). |
 
 ### Output Data
 
@@ -186,6 +186,10 @@ the transaction of the first data word and (including) the transaction of the la
 The signal _In_IsDropped_ is kept asserted from the clock cycle where _In_Drop_ is asserted until the end of the packet.
 The signal is implemented to avoid that user logic has to remember whether _In_Drop_ was at any earlier point during
 writing a packet.
+
+A packet that is too large (more than _Depth_g_ words, or more than _MaxPacketSize_g_ words if _MaxPacketSize_g_ is
+not -1) is dropped the same way: _In_IsDropped_ is asserted from the first word beyond the limit until the end of the
+packet.
 
 Note that the user may still provide more data after _In_Drop_ being asserted. All this data until _In_Last_ is ignored.
 
