@@ -7,6 +7,52 @@
 # Imports
 # ---------------------------------------------------------------------------------------------------
 from .utils import named_config
+import importlib.util
+import os
+
+
+def load_cosim(tb_name):
+    """cosim() of test/base/<tb_name>/cosim.py (the test folders are no Python packages)"""
+    path = os.path.join(os.path.dirname(__file__), '../../test/base', tb_name, 'cosim.py')
+    spec = importlib.util.spec_from_file_location(f'{tb_name}_cosim', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.cosim
+
+
+# Reed-Solomon codes of the RS testbenches
+Ccsds_c = {'SymbolWidth_g': 8, 'FieldPolynomial_g': 0x87, 'CodewordSymbols_g': 255, 'RootStep_g': 11,
+           'DualBasis_g': 117}
+RsCodes_c = {
+    # CCSDS 131.0-B-5: E = 16 and E = 8, dual basis
+    'ccsds16': Ccsds_c | {'DataSymbols_g': 223, 'FirstRoot_g': 212},
+    'ccsds8':  Ccsds_c | {'DataSymbols_g': 239, 'FirstRoot_g': 45},
+    # Polynomial basis, x^8 + x^4 + x^3 + x^2 + 1, first root alpha^0 and alpha^1
+    'rs255b0': {'SymbolWidth_g': 8, 'FieldPolynomial_g': 0x1D, 'CodewordSymbols_g': 255, 'DataSymbols_g': 239,
+                'FirstRoot_g': 0, 'RootStep_g': 1, 'DualBasis_g': 0},
+    'rs255b1': {'SymbolWidth_g': 8, 'FieldPolynomial_g': 0x1D, 'CodewordSymbols_g': 255, 'DataSymbols_g': 239,
+                'FirstRoot_g': 1, 'RootStep_g': 1, 'DualBasis_g': 0},
+    # Natively shortened code of n = 204 (as used in DVB)
+    'rs204':   {'SymbolWidth_g': 8, 'FieldPolynomial_g': 0x1D, 'CodewordSymbols_g': 204, 'DataSymbols_g': 188,
+                'FirstRoot_g': 0, 'RootStep_g': 1, 'DualBasis_g': 0},
+    # m = 4: RS(15,11) and RS(15,9) with b0 = 3, gamma = 2
+    'rs15':    {'SymbolWidth_g': 4, 'FieldPolynomial_g': 0x3, 'CodewordSymbols_g': 15, 'DataSymbols_g': 11,
+                'FirstRoot_g': 0, 'RootStep_g': 1, 'DualBasis_g': 0},
+    'rs15g2':  {'SymbolWidth_g': 4, 'FieldPolynomial_g': 0x3, 'CodewordSymbols_g': 15, 'DataSymbols_g': 9,
+                'FirstRoot_g': 3, 'RootStep_g': 2, 'DualBasis_g': 0},
+    # Range boundaries m = 3 and m = 12, and m = 5 with a dual basis
+    'rs7':     {'SymbolWidth_g': 3, 'FieldPolynomial_g': 0x3, 'CodewordSymbols_g': 7, 'DataSymbols_g': 3,
+                'FirstRoot_g': 1, 'RootStep_g': 1, 'DualBasis_g': 0},
+    'rs4095':  {'SymbolWidth_g': 12, 'FieldPolynomial_g': 0x53, 'CodewordSymbols_g': 4095, 'DataSymbols_g': 4087,
+                'FirstRoot_g': 0, 'RootStep_g': 1, 'DualBasis_g': 0},
+    'rs31':    {'SymbolWidth_g': 5, 'FieldPolynomial_g': 0x5, 'CodewordSymbols_g': 31, 'DataSymbols_g': 23,
+                'FirstRoot_g': 1, 'RootStep_g': 3, 'DualBasis_g': 1},
+}
+# (code, interleaving depth, random stall)
+RsConfigs_c = [('ccsds16', 1, False), ('ccsds16', 2, True), ('ccsds16', 5, False), ('ccsds16', 8, True),
+               ('ccsds8', 1, True), ('ccsds8', 5, False), ('rs255b0', 1, False), ('rs255b1', 2, True),
+               ('rs204', 1, True), ('rs15', 1, False), ('rs15', 2, True), ('rs15g2', 2, False),
+               ('rs7', 1, True), ('rs4095', 1, False), ('rs31', 3, True)]
 
 # ---------------------------------------------------------------------------------------------------
 # Functionality
@@ -470,6 +516,13 @@ def add_configs(olo_tb):
     named_config(tb,tb_configs | {'RegisterReady_g': False, 'Width_g': 8, 'RuntimeCfg_g' : False, 'Mode_g' : "SMOOTH"})
     named_config(tb,tb_configs | {'RegisterReady_g': False, 'Width_g': 8, 'RuntimeCfg_g' : False, 'Mode_g' : "BLOCK"})
 
+
+    ### olo_base_rs_encode ###
+    tb = olo_tb.test_bench('olo_base_rs_encode_tb')
+    cosim = load_cosim('olo_base_rs_encode')
+    for code, depth, stall in RsConfigs_c:
+        named_config(tb, RsCodes_c[code] | {'InterleaveDepth_g': depth, 'RandomStall_g': stall}, pre_config=cosim,
+                     short_name=f'{code}-I={depth}-Stall={stall}')
 
     ### olo_base_latency_comp ###
     latency_comp_tb = 'olo_base_latency_comp_tb'
