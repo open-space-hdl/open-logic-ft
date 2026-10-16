@@ -140,6 +140,14 @@ transaction. If some application or tool require these signals, the user should 
 | Wr_Error | out    | 1      | -       | Pulsed high when a write command was completed but  failed (AXI response from slave indicated an error) |
 | Rd_Done  | out    | 1      | -       | Pulsed high when a read command was completed successfully.  |
 | Rd_Error | out    | 1      | -       | Pulsed high when a read command was completed but at least one transaction failed (AXI response from slave indicated an error) |
+| Wr_ErrorResp | out | 2      | -       | AXI response code of the failed write command, valid in the clock cycle in which _Wr_Error_ is high (see below). "00" in all other clock cycles. |
+| Rd_ErrorResp | out | 2      | -       | AXI response code of the failed read command, valid in the clock cycle in which _Rd_Error_ is high (see below). "00" in all other clock cycles. |
+
+A command fails if any response of its bursts is not OKAY; for reads this includes every beat. The master never
+requests exclusive access, so EXOKAY also counts as a failure. _Wr_ErrorResp_ and _Rd_ErrorResp_ report the first
+response other than OKAY of the failed command, in the order the responses are accepted: "10" (SLVERR), "11" (DECERR)
+or "01" (EXOKAY). Each command starts without an error code, so a successful command after a failed one reports no
+code.
 
 ## Architecture
 

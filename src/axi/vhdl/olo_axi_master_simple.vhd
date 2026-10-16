@@ -79,8 +79,10 @@ entity olo_axi_master_simple is
         -- Response
         Wr_Done         : out   std_logic;
         Wr_Error        : out   std_logic;
+        Wr_ErrorResp    : out   std_logic_vector(1 downto 0);
         Rd_Done         : out   std_logic;
         Rd_Error        : out   std_logic;
+        Rd_ErrorResp    : out   std_logic_vector(1 downto 0);
         -- AXI Address Write Channel
         M_Axi_AwAddr    : out   std_logic_vector(AxiAddrWidth_g - 1 downto 0);
         M_Axi_AwLen     : out   std_logic_vector(7 downto 0);
@@ -154,6 +156,7 @@ architecture rtl of olo_axi_master_simple is
         -- Command Interface
         CmdWr_Ready     : std_logic;
         Wr_Error        : std_logic;
+        Wr_ErrorResp    : std_logic_vector(1 downto 0);
         Wr_Done         : std_logic;
         -- Generate Write Transactions
         WriteTfGenState : WriteTfGen_t;
@@ -178,6 +181,7 @@ architecture rtl of olo_axi_master_simple is
         WDataBeats      : unsigned(BeatsBits_c - 1 downto 0);
         -- Write Response
         WrRespError     : std_logic;
+        WrRespCode      : std_logic_vector(1 downto 0);
         -- Write General
         WrOpenTrans     : integer range -1 to AxiMaxOpenTransactions_g;
         WrBeatsNoCmd    : signed(log2ceil(MaxBeatsNoCmd_c + 1) downto 0);
@@ -191,6 +195,7 @@ architecture rtl of olo_axi_master_simple is
         -- Command Interface
         CmdRd_Ready     : std_logic;
         Rd_Error        : std_logic;
+        Rd_ErrorResp    : std_logic_vector(1 downto 0);
         Rd_Done         : std_logic;
         -- Generate Read Transactions
         ReadTfGenState  : ReadTfGen_t;
@@ -210,6 +215,7 @@ architecture rtl of olo_axi_master_simple is
         RDataFifoRead   : std_logic;
         -- Write Response
         RdRespError     : std_logic;
+        RdRespCode      : std_logic_vector(1 downto 0);
         -- Read General
         RdOpenTrans     : unsigned(log2ceil(AxiMaxOpenTransactions_g + 1) - 1 downto 0);
         RdFifoSpaceFree : signed(log2ceil(MaxBeatsNoCmd_c + 1) downto 0);
@@ -449,22 +455,28 @@ begin
             end if;
 
             -- Default values
-            v.Wr_Done  := '0';
-            v.Wr_Error := '0';
+            v.Wr_Done      := '0';
+            v.Wr_Error     := '0';
+            v.Wr_ErrorResp := (others => '0');
 
             -- W response FSM
+            -- The first response other than OKAY of a command is captured and reported with Wr_Error
             if M_Axi_BValid = '1' then
                 v.WrOpenTrans := v.WrOpenTrans - 1; -- Use v. because it may have been modified above and this modification has not to be overriden
                 if WrRespIsLast = '1' then
-                    if (M_Axi_BResp /= AxiResp_Okay_c) then
-                        v.Wr_Error := '1';
+                    if r.WrRespError = '1' then
+                        v.Wr_Error     := '1';
+                        v.Wr_ErrorResp := r.WrRespCode;
+                    elsif M_Axi_BResp /= AxiResp_Okay_c then
+                        v.Wr_Error     := '1';
+                        v.Wr_ErrorResp := M_Axi_BResp;
                     else
-                        v.Wr_Error := r.WrRespError;
-                        v.Wr_Done  := not r.WrRespError;
+                        v.Wr_Done := '1';
                     end if;
                     v.WrRespError := '0';
-                elsif M_Axi_BResp /= AxiResp_Okay_c then
+                elsif M_Axi_BResp /= AxiResp_Okay_c and r.WrRespError = '0' then
                     v.WrRespError := '1';
+                    v.WrRespCode  := M_Axi_BResp;
                 end if;
             end if;
 
@@ -581,26 +593,34 @@ begin
 
             -- *** R Response Generation ***
             -- Default Values
-            v.Rd_Done  := '0';
-            v.Rd_Error := '0';
+            v.Rd_Done      := '0';
+            v.Rd_Error     := '0';
+            v.Rd_ErrorResp := (others => '0');
 
             -- FSM
+            -- The first response other than OKAY of a command (any beat) is captured and reported with Rd_Error
             if RdRespLast = '1' then
                 v.RdOpenTrans := v.RdOpenTrans - 1; -- Use v. because it may have been modified above and this modification has not to be overriden
                 if RdRespIsLast = '1' then
-                    if (M_Axi_RResp /= AxiResp_Okay_c) then
-                        v.Rd_Error := '1';
+                    if r.RdRespError = '1' then
+                        v.Rd_Error     := '1';
+                        v.Rd_ErrorResp := r.RdRespCode;
+                    elsif M_Axi_RResp /= AxiResp_Okay_c then
+                        v.Rd_Error     := '1';
+                        v.Rd_ErrorResp := M_Axi_RResp;
                     else
-                        v.Rd_Error := r.RdRespError;
-                        v.Rd_Done  := not r.RdRespError;
+                        v.Rd_Done := '1';
                     end if;
                     v.RdRespError := '0';
-                elsif M_Axi_RResp /= AxiResp_Okay_c then
+                elsif M_Axi_RResp /= AxiResp_Okay_c and r.RdRespError = '0' then
                     v.RdRespError := '1';
+                    v.RdRespCode  := M_Axi_RResp;
                 end if;
             -- An error on any other beat of a burst also leads to Rd_Error
-            elsif (M_Axi_RValid = '1') and (M_Axi_RReady_I = '1') and (M_Axi_RResp /= AxiResp_Okay_c) then
+            elsif (M_Axi_RValid = '1') and (M_Axi_RReady_I = '1') and (M_Axi_RResp /= AxiResp_Okay_c) and
+                  r.RdRespError = '0' then
                 v.RdRespError := '1';
+                v.RdRespCode  := M_Axi_RResp;
             end if;
 
         end if;
@@ -628,8 +648,10 @@ begin
                     r.WDataEna        <= '0';
                     r.WrOpenTrans     <= 0;
                     r.WrRespError     <= '0';
+                    r.WrRespCode      <= (others => '0');
                     r.Wr_Done         <= '0';
                     r.Wr_Error        <= '0';
+                    r.Wr_ErrorResp    <= (others => '0');
                     r.WrBeatsNoCmd    <= (others => '0');
                     r.WFsm            <= Idle_s;
                     r.WDataFifoWrite  <= '0';
@@ -645,8 +667,10 @@ begin
                     r.ArFsm           <= Idle_s;
                     r.RdOpenTrans     <= (others => '0');
                     r.RdRespError     <= '0';
+                    r.RdRespCode      <= (others => '0');
                     r.Rd_Done         <= '0';
                     r.Rd_Error        <= '0';
+                    r.Rd_ErrorResp    <= (others => '0');
                     r.RdFifoSpaceFree <= to_signed(DataFifoDepth_g, r.RdFifoSpaceFree'length);
                     r.RDataFifoRead   <= '0';
                 end if;
@@ -662,12 +686,14 @@ begin
     M_Axi_WLast   <= r.M_Axi_WLast;
     Wr_Done       <= r.Wr_Done;
     Wr_Error      <= r.Wr_Error;
+    Wr_ErrorResp  <= r.Wr_ErrorResp;
     CmdRd_Ready   <= r.CmdRd_Ready;
     M_Axi_ArAddr  <= r.M_Axi_ArAddr;
     M_Axi_ArLen   <= r.M_Axi_ArLen;
     M_Axi_ArValid <= r.M_Axi_ArValid;
     Rd_Done       <= r.Rd_Done;
     Rd_Error      <= r.Rd_Error;
+    Rd_ErrorResp  <= r.Rd_ErrorResp;
 
     -- *** Constant Outputs ***
     M_Axi_AwSize  <= toUslv(log2(AxiDataWidth_g / 8), 3);
