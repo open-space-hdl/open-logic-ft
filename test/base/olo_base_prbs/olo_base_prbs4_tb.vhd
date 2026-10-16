@@ -16,6 +16,9 @@ library vunit_lib;
     context vunit_lib.com_context;
     context vunit_lib.vc_context;
 
+library work;
+    use work.olo_test_axis_slave_pkg.all;
+
 library olo;
     use olo.olo_base_pkg_array.all;
     use olo.olo_base_pkg_math.all;
@@ -59,12 +62,12 @@ architecture sim of olo_base_prbs4_tb is
 
     -- *** Verification Compnents ***
     constant AxisSlave_c : axi_stream_slave_t := new_axi_stream_slave (
-        data_length => BitsPerSymbol_g,
+        data_length => padded_data_length(BitsPerSymbol_g),
         stall_config => new_stall_config(0.5, 0, 10)
     );
 
     constant StateSlave_c : axi_stream_slave_t := new_axi_stream_slave (
-        data_length => 4,
+        data_length => padded_data_length(4),
         stall_config => new_stall_config(0.0, 0, 0)
     );
 
@@ -111,14 +114,14 @@ begin
 
                 while StartBit_v < 15 loop
                     Symbol_v := PrbsSequenceRep_c(StartBit_v+BitsPerSymbol_g-1 downto StartBit_v);
-                    check_axi_stream(net, AxisSlave_c, Symbol_v, blocking => false, msg => "Wrong Data");
+                    check_axi_stream_padded(net, AxisSlave_c, Symbol_v, blocking => false, msg => "Wrong Data");
                     -- State is updated already before outputting first symbol
                     if BitsPerSymbol_g > 4 then
                         StateIdx_v := (StartBit_v + BitsPerSymbol_g - 4) mod States_c'length;
                     else
                         StateIdx_v := StartBit_v;
                     end if;
-                    check_axi_stream(net, StateSlave_c, States_c(StateIdx_v), blocking => false, msg => "Wrong State");
+                    check_axi_stream_padded(net, StateSlave_c, States_c(StateIdx_v), blocking => false, msg => "Wrong State");
                     StartBit_v := StartBit_v + BitsPerSymbol_g;
                 end loop;
 
@@ -141,14 +144,14 @@ begin
 
                 while StartBit_v < 15 loop
                     Symbol_v := PrbsSequenceRep_c(StartBit_v+BitsPerSymbol_g-1 downto StartBit_v);
-                    check_axi_stream(net, AxisSlave_c, Symbol_v, blocking => false, msg => "Wrong Data");
+                    check_axi_stream_padded(net, AxisSlave_c, Symbol_v, blocking => false, msg => "Wrong Data");
                     -- State is updated already before outputting first symbol
                     if BitsPerSymbol_g > 4 then
                         StateIdx_v := (StartBit_v + BitsPerSymbol_g - 4) mod States_c'length;
                     else
                         StateIdx_v := StartBit_v;
                     end if;
-                    check_axi_stream(net, StateSlave_c, States_c(StateIdx_v), blocking => false, msg => "Wrong State");
+                    check_axi_stream_padded(net, StateSlave_c, States_c(StateIdx_v), blocking => false, msg => "Wrong State");
                     StartBit_v := StartBit_v + BitsPerSymbol_g;
                 end loop;
 
@@ -191,9 +194,10 @@ begin
     -----------------------------------------------------------------------------------------------
     -- Verification Components
     -----------------------------------------------------------------------------------------------
-    vc_data : entity vunit_lib.axi_stream_slave
+    vc_data : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => AxisSlave_c
+            Slave      => AxisSlave_c,
+            Data_Width => BitsPerSymbol_g
         )
         port map (
             AClk   => Clk,
@@ -202,9 +206,10 @@ begin
             TData  => Out_Data
         );
 
-    vc_state : entity vunit_lib.axi_stream_slave
+    vc_state : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => StateSlave_c
+            Slave      => StateSlave_c,
+            Data_Width => 4
         )
         port map (
             AClk   => Clk,

@@ -16,6 +16,9 @@ library vunit_lib;
     context vunit_lib.com_context;
     context vunit_lib.vc_context;
 
+library work;
+    use work.olo_test_axis_slave_pkg.all;
+
 library olo;
     use olo.olo_base_pkg_math.all;
     use olo.olo_base_pkg_logic.all;
@@ -53,7 +56,7 @@ architecture sim of olo_base_wconv_n2m_78_tb is
         stall_config => new_stall_config(0.0, 0, 0)
     );
     constant AxisSlave_c  : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length => OutWidth_c,
+        data_length => padded_data_length(OutWidth_c),
         stall_config => new_stall_config(0.0, 0, 0)
     );
 
@@ -77,7 +80,7 @@ architecture sim of olo_base_wconv_n2m_78_tb is
         for i in 0 to PacketBits_c/Outwidth_c-1 loop
             OutData_v := data((i+1)*Outwidth_c-1 downto i*Outwidth_c);
             IsLast_v  := choose(i = PacketBits_c/Outwidth_c-1, '1', '0');
-            check_axi_stream(net, AxisSlave_c, OutData_v, tlast => IsLast_v, blocking => false);
+            check_axi_stream_padded(net, AxisSlave_c, OutData_v, tlast => IsLast_v, blocking => false);
         end loop;
 
     end procedure;
@@ -193,9 +196,10 @@ begin
             TLast  => In_Last
         );
 
-    vc_response : entity vunit_lib.axi_stream_slave
+    vc_response : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => AxisSlave_c
+            Slave      => AxisSlave_c,
+            Data_Width => OutWidth_c
         )
         port map (
             AClk   => Clk,

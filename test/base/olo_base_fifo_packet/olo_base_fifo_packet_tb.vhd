@@ -16,6 +16,9 @@ library vunit_lib;
     context vunit_lib.com_context;
     context vunit_lib.vc_context;
 
+library work;
+    use work.olo_test_axis_slave_pkg.all;
+
 library osvvm;
     use osvvm.RandomPkg.all;
 
@@ -66,7 +69,7 @@ architecture sim of olo_base_fifo_packet_tb is
         stall_config => new_stall_config(choose(RandomStall_g, 0.5, 0.0), 0, 10)
     );
     constant AxisSlave_c            : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length => Width_c,
+        data_length => padded_data_length(Width_c),
         user_length => log2ceil(Depth_c+1),
         stall_config => new_stall_config(choose(RandomStall_g, 0.5, 0.0), 0, 10)
     );
@@ -75,7 +78,7 @@ architecture sim of olo_base_fifo_packet_tb is
         stall_config => new_stall_config(0.0, 0, 0)
     );
     constant AxisIsDropedSlave_c    : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length => 1,
+        data_length => padded_data_length(1),
         stall_config => new_stall_config(0.0, 0, 0)
     );
 
@@ -100,7 +103,7 @@ architecture sim of olo_base_fifo_packet_tb is
             else
                 IsDropped_v := "0";
             end if;
-            check_axi_stream(net, AxisIsDropedSlave_c, IsDropped_v, blocking => false, msg => "IsDropped_v");
+            check_axi_stream_padded(net, AxisIsDropedSlave_c, IsDropped_v, blocking => false, msg => "IsDropped_v");
 
             -- Push Data
             if i = size-1 then
@@ -168,7 +171,7 @@ architecture sim of olo_base_fifo_packet_tb is
             else
                 Size_v := (others => '0');
             end if;
-            check_axi_stream(net, AxisSlave_c, toUslv(startVal + i, Width_c), tlast => Tlast_v, tuser => Size_v, blocking => false);
+            check_axi_stream_padded(net, AxisSlave_c, toUslv(startVal + i, Width_c), tlast => Tlast_v, tuser => Size_v, blocking => false);
         end loop;
 
         if blocking then
@@ -880,9 +883,10 @@ begin
         -- Do only check size for FULL feature set
         OutSize <= Out_Size when FeatureSet_g /= "DROP_ONLY" else (others => '0');
 
-        vc_response : entity vunit_lib.axi_stream_slave
+        vc_response : entity work.olo_test_axis_slave_vc
             generic map (
-                Slave => AxisSlave_c
+                Slave      => AxisSlave_c,
+                Data_Width => Width_c
             )
             port map (
                 Aclk   => Clk,
@@ -924,9 +928,10 @@ begin
     begin
         Valid <= In_Valid and In_Ready;
 
-        vc_isdropped : entity vunit_lib.axi_stream_slave
+        vc_isdropped : entity work.olo_test_axis_slave_vc
             generic map (
-                Slave => AxisIsDropedSlave_c
+                Slave      => AxisIsDropedSlave_c,
+                Data_Width => 1
             )
             port map (
                 Aclk      => Clk,

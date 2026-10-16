@@ -16,6 +16,9 @@ library vunit_lib;
     context vunit_lib.com_context;
     context vunit_lib.vc_context;
 
+library work;
+    use work.olo_test_axis_slave_pkg.all;
+
 library olo;
     use olo.olo_base_pkg_math.all;
     use olo.olo_base_pkg_logic.all;
@@ -51,7 +54,7 @@ architecture sim of olo_base_wconv_n2m_tb is
         stall_config => new_stall_config(0.0, 0, 0)
     );
     constant AxisSlave_c  : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length => OutWidth_g,
+        data_length => padded_data_length(OutWidth_g),
         stall_config => new_stall_config(0.0, 0, 0)
     );
 
@@ -113,7 +116,7 @@ architecture sim of olo_base_wconv_n2m_tb is
                 if Blocking_v then
                     wait for readyDelay;
                 end if;
-                check_axi_stream(net, AxisSlave_c, OutData_v, tlast => '0', msg => msg & " - any-data", blocking => Blocking_v);
+                check_axi_stream_padded(net, AxisSlave_c, OutData_v, tlast => '0', msg => msg & " - any-data", blocking => Blocking_v);
                 ElInWord_v := 0;
                 OutData_v  := (others => '0');
             end if;
@@ -125,7 +128,7 @@ architecture sim of olo_base_wconv_n2m_tb is
         if Blocking_v then
             wait for readyDelay;
         end if;
-        check_axi_stream(net, AxisSlave_c, OutData_v, tlast => last, msg => msg & " - last-data", blocking => Blocking_v);
+        check_axi_stream_padded(net, AxisSlave_c, OutData_v, tlast => last, msg => msg & " - last-data", blocking => Blocking_v);
     end procedure;
 
     -----------------------------------------------------------------------------------------------
@@ -303,9 +306,10 @@ begin
             TLast  => In_Last
         );
 
-    vc_response : entity vunit_lib.axi_stream_slave
+    vc_response : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => AxisSlave_c
+            Slave      => AxisSlave_c,
+            Data_Width => OutWidth_g
         )
         port map (
             AClk   => Clk,

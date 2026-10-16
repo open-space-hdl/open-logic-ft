@@ -17,6 +17,7 @@ library vunit_lib;
 
 library work;
     use work.olo_test_ft_pkg.all;
+    use work.olo_test_axis_slave_pkg.all;
 
 library olo;
     use olo.olo_base_pkg_math.all;
@@ -56,7 +57,7 @@ architecture sim of olo_ft_fifo_async_tb is
         stall_config => new_stall_config(0.2, 0, 3)
     );
     constant AxisSlave_c  : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length  => Width_g,
+        data_length  => padded_data_length(Width_g),
         user_length  => 2,
         stall_config => new_stall_config(0.2, 0, 3)
     );
@@ -143,8 +144,8 @@ begin
                 end loop;
 
                 for i in 0 to 63 loop
-                    check_axi_stream(net, AxisSlave_c, toUslv(i + 1, Width_g), tuser => "00",
-                        msg                                                          => "BackToBack " & integer'image(i), blocking => false);
+                    check_axi_stream_padded(net, AxisSlave_c, toUslv(i + 1, Width_g), tuser => "00",
+                        msg                                                                 => "BackToBack " & integer'image(i), blocking => false);
                 end loop;
 
             ---------------------------------------------------------------------------------------
@@ -203,8 +204,8 @@ begin
                 end loop;
 
                 for i in 0 to Depth_c - 1 loop
-                    check_axi_stream(net, AxisSlave_c, toUslv(i, Width_g), tuser => "00",
-                        msg                                                      => "FullEmpty drain " & integer'image(i), blocking => false);
+                    check_axi_stream_padded(net, AxisSlave_c, toUslv(i, Width_g), tuser => "00",
+                        msg                                                             => "FullEmpty drain " & integer'image(i), blocking => false);
                 end loop;
 
             ---------------------------------------------------------------------------------------
@@ -337,9 +338,10 @@ begin
             TData  => In_Data
         );
 
-    vc_slave : entity vunit_lib.axi_stream_slave
+    vc_slave : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => AxisSlave_c
+            Slave      => AxisSlave_c,
+            Data_Width => Width_g
         )
         port map (
             AClk   => Out_Clk,
