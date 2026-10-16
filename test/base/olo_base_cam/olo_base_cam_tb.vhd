@@ -16,6 +16,9 @@ library vunit_lib;
     context vunit_lib.com_context;
 	context vunit_lib.vc_context;
 
+library work;
+    use work.olo_test_axis_slave_pkg.all;
+
 library olo;
     use olo.olo_base_pkg_math.all;
     use olo.olo_base_pkg_logic.all;
@@ -56,10 +59,10 @@ architecture sim of olo_base_cam_tb is
         data_length => ContentWidth_g
     );
     constant MatchSlave_c : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length => Addresses_g
+        data_length => padded_data_length(Addresses_g)
     );
     constant AddrSlave_c  : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length => log2ceil(Addresses_g),
+        data_length => padded_data_length(log2ceil(Addresses_g)),
         user_length => 1
     );
 
@@ -121,9 +124,9 @@ architecture sim of olo_base_cam_tb is
             Found_v := "1";
         end if;
         push_axi_stream(net, RdMaster_c, toUslv(Content, ContentWidth_g));
-        check_axi_stream(net, MatchSlave_c, AddrOneHot_v, blocking => false, msg => "one hot - " & Msg);
+        check_axi_stream_padded(net, MatchSlave_c, AddrOneHot_v, blocking => false, msg => "one hot - " & Msg);
         if UseAddrOut_g then
-            check_axi_stream(net, AddrSlave_c, Addr_v, tuser => Found_v, blocking => false, msg => "addr - " & Msg);
+            check_axi_stream_padded(net, AddrSlave_c, Addr_v, tuser => Found_v, blocking => false, msg => "addr - " & Msg);
         end if;
         if Blocking then
             wait_until_idle(net, as_sync(RdMaster_c));
@@ -491,9 +494,10 @@ begin
             TData  => Rd_Content
         );
 
-    vc_camout_onehot : entity vunit_lib.axi_stream_slave
+    vc_camout_onehot : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => MatchSlave_c
+            Slave      => MatchSlave_c,
+            Data_Width => Addresses_g
         )
         port map (
             Aclk   => Clk,
@@ -501,9 +505,10 @@ begin
             TData  => Match_Match
         );
 
-    vc_camout_addr : entity vunit_lib.axi_stream_slave
+    vc_camout_addr : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => AddrSlave_c
+            Slave      => AddrSlave_c,
+            Data_Width => log2ceil(Addresses_g)
         )
         port map (
             Aclk        => Clk,

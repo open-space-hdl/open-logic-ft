@@ -16,6 +16,9 @@ library vunit_lib;
     context vunit_lib.com_context;
     context vunit_lib.vc_context;
 
+library work;
+    use work.olo_test_axis_slave_pkg.all;
+
 library olo;
     use olo.olo_base_pkg_math.all;
     use olo.olo_base_pkg_logic.all;
@@ -69,7 +72,7 @@ architecture sim of olo_base_crc_tb is
         stall_config => new_stall_config(0.0, 0, 0)
     );
     constant AxisSlave_c  : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length => CrcWidth_g,
+        data_length => padded_data_length(CrcWidth_g),
         stall_config => new_stall_config(0.0, 0, 0)
     );
 
@@ -345,29 +348,29 @@ begin
                 if InvertOutput_g then
                     Result_v := not Result_v;
                 end if;
-                check_axi_stream(net, AxisSlave_c, Result_v, msg => "CRC");
+                check_axi_stream_padded(net, AxisSlave_c, Result_v, msg => "CRC");
             end if;
 
             if run("Test-SingleBeat") then
                 pushPacket(net, beats => 1);
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 1), msg => "CRC");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 1), msg => "CRC");
             end if;
 
             if run("Test-MultiBeat") then
                 pushPacket(net, beats => 2);
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 2), msg => "CRC");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 2), msg => "CRC");
             end if;
 
             if run("Test-MultiPacket-Last") then
                 -- Packet 0 (2 beats)
                 pushPacket(net, beats => 2, useLast => true, useFirst => false);
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 2), msg => "Pkt0");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 2), msg => "Pkt0");
                 -- Packet 1 (1 beat)
                 pushPacket(net, beats => 1, useLast => true, useFirst => false);
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 1), msg => "Pkt1");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 1), msg => "Pkt1");
                 -- Packet 2 (3 beats)
                 pushPacket(net, beats => 3, useLast => true, useFirst => false);
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 3),  msg => "Pkt2");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 3),  msg => "Pkt2");
             end if;
 
             if run("Test-MultiPacket-First") then
@@ -388,13 +391,13 @@ begin
             if run("Test-MultiPacket-FirstAndLast") then
                 -- Packet 0 (2 beats)
                 pushPacket(net, beats => 2, useLast => true, useFirst => true);
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 2), msg => "Pkt0");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 2), msg => "Pkt0");
                 -- Packet 1 (1 beat)
                 pushPacket(net, beats => 1, useLast => true, useFirst => true);
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 1), msg => "Pkt1");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 1), msg => "Pkt1");
                 -- Packet 2 (3 beats)
                 pushPacket(net, beats => 3, useLast => true, useFirst => true);
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 3),  msg => "Pkt2");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 3),  msg => "Pkt2");
             end if;
 
             if run("Test-Backpressure") then
@@ -405,11 +408,11 @@ begin
 
                 -- Check 3 packets with delay
                 wait for 1 us;
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 2), msg => "Pkt0");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 2), msg => "Pkt0");
                 wait for 1 us;
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 1), msg => "Pkt1");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 1), msg => "Pkt1");
                 wait for 1 us;
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 3),  msg => "Pkt2");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 3),  msg => "Pkt2");
             end if;
 
             if run("Test-InDelay") then
@@ -417,13 +420,13 @@ begin
 
                 -- Packet 0 (2 beats)
                 pushPacket(net, beats => 2, useLast => true, useFirst => false);
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 2), msg => "Pkt0");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 2), msg => "Pkt0");
                 -- Packet 1 (1 beat)
                 pushPacket(net, beats => 1, useLast => true, useFirst => false);
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 1), msg => "Pkt1");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 1), msg => "Pkt1");
                 -- Packet 2 (3 beats)
                 pushPacket(net, beats => 3, useLast => true, useFirst => false);
-                check_axi_stream(net, AxisSlave_c, getResponse(beats => 3),  msg => "Pkt2");
+                check_axi_stream_padded(net, AxisSlave_c, getResponse(beats => 3),  msg => "Pkt2");
             end if;
 
             wait for 1 us;
@@ -482,9 +485,10 @@ begin
             TLast     => In_Last
         );
 
-    vc_response : entity vunit_lib.axi_stream_slave
+    vc_response : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => AxisSlave_c
+            Slave      => AxisSlave_c,
+            Data_Width => CrcWidth_g
         )
         port map (
             AClk   => Clk,

@@ -18,6 +18,9 @@ library vunit_lib;
     use vunit_lib.queue_pkg.all;
     use vunit_lib.sync_pkg.all;
 
+library work;
+    use work.olo_test_axis_slave_pkg.all;
+
 library olo;
     use olo.olo_base_pkg_math.all;
     use olo.olo_base_pkg_logic.all;
@@ -84,7 +87,7 @@ architecture sim of olo_intf_uart_tb is
 	);
 
     constant RxAxis_c : axi_stream_slave_t := new_axi_stream_slave (
-        data_length => DataBits_g,
+        data_length => padded_data_length(DataBits_g),
         user_length => 1
     );
 
@@ -180,7 +183,7 @@ begin
             if run("RxSingle") then
                 Data_v := toUslv(16#7A#, DataBits_g);
                 push_stream(net, MasterStream_c, getBits(Data_v));
-                check_axi_stream(net, RxAxis_c, Data_v, tuser => "0", blocking => false);
+                check_axi_stream_padded(net, RxAxis_c, Data_v, tuser => "0", blocking => false);
             end if;
 
             if run("RxConsecutive") then
@@ -189,7 +192,7 @@ begin
                 for i in 0 to 3 loop
                     Data_v := toUslv(16#58#+i, DataBits_g);
                     push_stream(net, MasterStream_c, getBits(Data_v));
-                    check_axi_stream(net, RxAxis_c, Data_v, tuser => "0", blocking => false);
+                    check_axi_stream_padded(net, RxAxis_c, Data_v, tuser => "0", blocking => false);
                 end loop;
 
             end if;
@@ -202,18 +205,18 @@ begin
                     DataAndParity_v             := getBits(Data_v);
                     DataAndParity_v(DataBits_g) := not DataAndParity_v(DataBits_g); -- Flip parity
                     push_stream(net, MasterStream_c, DataAndParity_v);
-                    check_axi_stream(net, RxAxis_c, Data_v, tuser => "1", blocking => false);
+                    check_axi_stream_padded(net, RxAxis_c, Data_v, tuser => "1", blocking => false);
                     -- Even Bits
                     Data_v                      := toUslv(16#78#, DataBits_g);
                     DataAndParity_v             := getBits(Data_v);
                     DataAndParity_v(DataBits_g) := not DataAndParity_v(DataBits_g); -- Flip parity
                     push_stream(net, MasterStream_c, DataAndParity_v);
-                    check_axi_stream(net, RxAxis_c, Data_v, tuser => "1", blocking => false);
+                    check_axi_stream_padded(net, RxAxis_c, Data_v, tuser => "1", blocking => false);
                     -- Check Successful transaction after errors
                     Data_v          := toUslv(16#77#, DataBits_g);
                     DataAndParity_v := getBits(Data_v);
                     push_stream(net, MasterStream_c, DataAndParity_v);
-                    check_axi_stream(net, RxAxis_c, Data_v, tuser => "0", blocking => false);
+                    check_axi_stream_padded(net, RxAxis_c, Data_v, tuser => "0", blocking => false);
                 end if;
             end if;
 
@@ -228,7 +231,7 @@ begin
                 -- Send data
                 Data_v := toUslv(16#7A#, DataBits_g);
                 push_stream(net, MasterStream_c, getBits(Data_v));
-                check_axi_stream(net, RxAxis_c, Data_v, tuser => "0", blocking => false);
+                check_axi_stream_padded(net, RxAxis_c, Data_v, tuser => "0", blocking => false);
 
             end if;
 
@@ -308,9 +311,10 @@ begin
             TData  => Tx_Data
         );
 
-    vc_rx_data : entity vunit_lib.axi_stream_slave
+    vc_rx_data : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => RxAxis_c
+            Slave      => RxAxis_c,
+            Data_Width => DataBits_g
         )
         port map (
             Aclk        => Clk,

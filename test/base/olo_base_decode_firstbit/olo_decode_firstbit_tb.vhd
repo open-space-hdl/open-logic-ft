@@ -16,6 +16,9 @@ library vunit_lib;
     context vunit_lib.com_context;
 	context vunit_lib.vc_context;
 
+library work;
+    use work.olo_test_axis_slave_pkg.all;
+
 library olo;
     use olo.olo_base_pkg_math.all;
     use olo.olo_base_pkg_logic.all;
@@ -49,7 +52,7 @@ architecture sim of olo_base_decode_firstbit_tb is
         data_length => InWidth_g
     );
     constant AxisSlave_c  : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length => log2ceil(InWidth_g),
+        data_length => padded_data_length(log2ceil(InWidth_g)),
         user_length => 1
 	);
 
@@ -99,7 +102,10 @@ begin
                     Data_v    := (others => '0');
                     Data_v(i) := '1';
                     push_axi_stream(net, AxisMaster_c, Data_v);
-                    check_axi_stream(net, AxisSlave_c, toUslv(i, Out_FirstBit'length), tuser => "1", blocking => false, msg => "Data - " & integer'image(i));
+                    check_axi_stream_padded(net, AxisSlave_c, toUslv(i, Out_FirstBit'length),
+                                            tuser    => "1",
+                                            blocking => false,
+                                            msg      => "Data - " & integer'image(i));
                 end loop;
 
             end if;
@@ -111,13 +117,13 @@ begin
                 Data_v(2) := '1';
                 Data_v(3) := '1';
                 push_axi_stream(net, AxisMaster_c, Data_v);
-                check_axi_stream(net, AxisSlave_c, toUslv(2, Out_FirstBit'length), tuser => "1", blocking => false, msg => "Data - Next");
+                check_axi_stream_padded(net, AxisSlave_c, toUslv(2, Out_FirstBit'length), tuser => "1", blocking => false, msg => "Data - Next");
                 -- Far apart
                 Data_v                := (others => '0');
                 Data_v(Data_v'high-1) := '1';
                 Data_v(3)             := '1';
                 push_axi_stream(net, AxisMaster_c, Data_v);
-                check_axi_stream(net, AxisSlave_c, toUslv(3, Out_FirstBit'length), tuser => "1", blocking => false, msg => "Data - Far");
+                check_axi_stream_padded(net, AxisSlave_c, toUslv(3, Out_FirstBit'length), tuser => "1", blocking => false, msg => "Data - Far");
             end if;
 
             -- Test none set
@@ -177,9 +183,10 @@ begin
             TData  => In_Data
         );
 
-    vc_slave : entity vunit_lib.axi_stream_slave
+    vc_slave : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => AxisSlave_c
+            Slave      => AxisSlave_c,
+            Data_Width => log2ceil(InWidth_g)
         )
         port map (
             Aclk     => Clk,

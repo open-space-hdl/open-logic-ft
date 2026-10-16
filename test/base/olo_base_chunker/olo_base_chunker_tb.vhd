@@ -16,6 +16,9 @@ library vunit_lib;
     context vunit_lib.com_context;
     context vunit_lib.vc_context;
 
+library work;
+    use work.olo_test_axis_slave_pkg.all;
+
 library osvvm;
     use osvvm.RandomPkg.all;
 
@@ -55,7 +58,7 @@ architecture sim of olo_base_chunker_tb is
         stall_config => new_stall_config(StallProb_c, 0, 5)
     );
     constant AxisSlave_c  : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length => Width_g,
+        data_length => padded_data_length(Width_g),
         user_length => 1,
         stall_config => new_stall_config(StallProb_c, 0, 5)
     );
@@ -104,12 +107,12 @@ architecture sim of olo_base_chunker_tb is
                 ChunkLast_v := '0';
             end if;
             InLast_v(0) := Last_v;
-            check_axi_stream(net, AxisSlave_c, Data_v,
-                             tlast    => ChunkLast_v,
-                             tstrb    => Be_v,
-                             tuser    => InLast_v,
-                             msg      => msg & " beat " & integer'image(i),
-                             blocking => false);
+            check_axi_stream_padded(net, AxisSlave_c, Data_v,
+                                    tlast    => ChunkLast_v,
+                                    tstrb    => Be_v,
+                                    tuser    => InLast_v,
+                                    msg      => msg & " beat " & integer'image(i),
+                                    blocking => false);
 
             -- Position inside the chunk
             if ChunkLast_v = '1' then
@@ -312,9 +315,10 @@ begin
             TLast  => In_Last
         );
 
-    vc_response : entity vunit_lib.axi_stream_slave
+    vc_response : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => AxisSlave_c
+            Slave      => AxisSlave_c,
+            Data_Width => Width_g
         )
         port map (
             AClk     => Clk,

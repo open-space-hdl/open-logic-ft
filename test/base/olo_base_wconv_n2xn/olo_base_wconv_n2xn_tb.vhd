@@ -16,6 +16,9 @@ library vunit_lib;
     context vunit_lib.com_context;
     context vunit_lib.vc_context;
 
+library work;
+    use work.olo_test_axis_slave_pkg.all;
+
 library olo;
     use olo.olo_base_pkg_math.all;
     use olo.olo_base_pkg_logic.all;
@@ -51,7 +54,7 @@ architecture sim of olo_base_wconv_n2xn_tb is
         stall_config => new_stall_config(0.0, 0, 0)
     );
     constant AxisSlave_c  : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length => OutWidth_c,
+        data_length => padded_data_length(OutWidth_c),
         user_length => WidthRatio_g,
         stall_config => new_stall_config(0.0, 0, 0)
     );
@@ -112,10 +115,10 @@ begin
     test_runner_watchdog(runner, 1 ms);
 
     p_control : process is
-        variable Data_v           : std_logic_vector(Out_Data'range);
+        variable Data_v           : std_logic_vector(padded_data_length(OutWidth_c)-1 downto 0);
         variable Last_v           : std_logic;
         variable WordEna_v        : std_logic_vector(Out_WordEna'range);
-        variable TKeep_v, TStrb_v : std_logic_vector(OutWidth_c/8-1 downto 0);
+        variable TKeep_v, TStrb_v : std_logic_vector(padded_data_length(OutWidth_c)/8-1 downto 0);
         variable TDest_v, TId_v   : std_logic_vector(-1 downto 0);
     begin
         test_runner_setup(runner, runner_cfg);
@@ -136,19 +139,19 @@ begin
             if run("Basic") then
                 -- Without last
                 pushCounterValue(net, start => 1, count => WidthRatio_g, last => '0');
-                check_axi_stream(net, AxisSlave_c, counterValue(1), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data a");
+                check_axi_stream_padded(net, AxisSlave_c, counterValue(1), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data a");
                 -- With last
                 pushCounterValue(net, start => 3, count => WidthRatio_g, last => '1');
-                check_axi_stream(net, AxisSlave_c, counterValue(3), tlast => '1', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data b");
+                check_axi_stream_padded(net, AxisSlave_c, counterValue(3), tlast => '1', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data b");
             end if;
 
             if run("FullThrottle") then
                 pushCounterValue(net, start => 3, count => WidthRatio_g, last => '0');
                 pushCounterValue(net, start => 4, count => WidthRatio_g, last => '1');
                 pushCounterValue(net, start => 5, count => WidthRatio_g, last => '0');
-                check_axi_stream(net, AxisSlave_c, counterValue(3), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data a");
-                check_axi_stream(net, AxisSlave_c, counterValue(4), tlast => '1', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data b");
-                check_axi_stream(net, AxisSlave_c, counterValue(5), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data c");
+                check_axi_stream_padded(net, AxisSlave_c, counterValue(3), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data a");
+                check_axi_stream_padded(net, AxisSlave_c, counterValue(4), tlast => '1', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data b");
+                check_axi_stream_padded(net, AxisSlave_c, counterValue(5), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data c");
             end if;
 
             if run("OutLimited") then
@@ -156,18 +159,18 @@ begin
                 pushCounterValue(net, start => 4, count => WidthRatio_g, last => '1');
                 pushCounterValue(net, start => 5, count => WidthRatio_g, last => '0');
                 wait for 200 ns;
-                check_axi_stream(net, AxisSlave_c, counterValue(3), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data a");
+                check_axi_stream_padded(net, AxisSlave_c, counterValue(3), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data a");
                 wait for 200 ns;
-                check_axi_stream(net, AxisSlave_c, counterValue(4), tlast => '1', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data b");
+                check_axi_stream_padded(net, AxisSlave_c, counterValue(4), tlast => '1', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data b");
                 wait for 200 ns;
-                check_axi_stream(net, AxisSlave_c, counterValue(5), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data c");
+                check_axi_stream_padded(net, AxisSlave_c, counterValue(5), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data c");
             end if;
 
             if run("InLimited") then
                 WordDelay_v := 200 ns;
-                check_axi_stream(net, AxisSlave_c, counterValue(3), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data a");
-                check_axi_stream(net, AxisSlave_c, counterValue(4), tlast => '1', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data b");
-                check_axi_stream(net, AxisSlave_c, counterValue(5), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data c");
+                check_axi_stream_padded(net, AxisSlave_c, counterValue(3), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data a");
+                check_axi_stream_padded(net, AxisSlave_c, counterValue(4), tlast => '1', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data b");
+                check_axi_stream_padded(net, AxisSlave_c, counterValue(5), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "data c");
                 pushCounterValue(net, start => 3, count => WidthRatio_g, last => '0');
                 pushCounterValue(net, start => 4, count => WidthRatio_g, last => '1');
                 pushCounterValue(net, start => 5, count => WidthRatio_g, last => '0');
@@ -175,7 +178,11 @@ begin
 
             if run("PartialWord") then
                 pushCounterValue(net, start => 3, count => WidthRatio_g, last => '0');
-                check_axi_stream(net, AxisSlave_c, counterValue(3), tlast => '0', tuser => onesVector(WidthRatio_g), blocking => false, msg => "full Word");
+                check_axi_stream_padded(net, AxisSlave_c, counterValue(3),
+                                        tlast    => '0',
+                                        tuser    => onesVector(WidthRatio_g),
+                                        blocking => false,
+                                        msg      => "full Word");
                 push_axi_stream(net, AxisMaster_c, toUslv(7, 4), tlast => '1');
                 pop_axi_stream(net, AxisSlave_c,
                     tdata => Data_v, tlast => Last_v,  tkeep => TKeep_v, tstrb => TStrb_v,
@@ -237,9 +244,10 @@ begin
             TLast  => In_Last
         );
 
-    vc_response : entity vunit_lib.axi_stream_slave
+    vc_response : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => AxisSlave_c
+            Slave      => AxisSlave_c,
+            Data_Width => OutWidth_c
         )
         port map (
             AClk   => Clk,

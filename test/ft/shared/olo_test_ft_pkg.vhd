@@ -22,6 +22,9 @@ library vunit_lib;
     context vunit_lib.com_context;
     context vunit_lib.vc_context;
 
+library work;
+    use work.olo_test_axis_slave_pkg.all;
+
 library olo;
     use olo.olo_base_pkg_math.all;
     use olo.olo_ft_pkg_ecc.all;
@@ -317,8 +320,11 @@ package body olo_test_ft_pkg is
         ftExpectedBeat(data, flipBits, ExpData_v, ExpSec_v, ExpDed_v);
         ExpTuser_v := ExpSec_v & ExpDed_v;
 
-        check_axi_stream(net, slave, ExpData_v, tlast => last, tuser => ExpTuser_v,
-            msg                                       => message, blocking => false);
+        check_axi_stream_padded(net, slave, ExpData_v,
+                                tlast    => last,
+                                tuser    => ExpTuser_v,
+                                msg      => message,
+                                blocking => false);
     end procedure;
 
     procedure ftExpectedBeat (

@@ -17,6 +17,7 @@ library vunit_lib;
 
 library work;
     use work.olo_test_ft_pkg.all;
+    use work.olo_test_axis_slave_pkg.all;
 
 library olo;
     use olo.olo_base_pkg_math.all;
@@ -62,7 +63,7 @@ architecture sim of olo_ft_fifo_sync_tb is
         stall_config => new_stall_config(0.2, 0, 3)
     );
     constant AxisSlave_c  : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length  => Width_g,
+        data_length  => padded_data_length(Width_g),
         user_length  => 2,
         stall_config => new_stall_config(0.2, 0, 3)
     );
@@ -181,8 +182,8 @@ begin
                 end loop;
 
                 for i in 0 to Depth_c - 1 loop
-                    check_axi_stream(net, AxisSlave_c, toUslv(i, Width_g), tuser => "00",
-                        msg                                                      => "FullEmpty drain " & integer'image(i), blocking => false);
+                    check_axi_stream_padded(net, AxisSlave_c, toUslv(i, Width_g), tuser => "00",
+                        msg                                                             => "FullEmpty drain " & integer'image(i), blocking => false);
                 end loop;
 
             ---------------------------------------------------------------------------------------
@@ -195,8 +196,8 @@ begin
                 end loop;
 
                 for i in 0 to 63 loop
-                    check_axi_stream(net, AxisSlave_c, toUslv(i + 1, Width_g), tuser => "00",
-                        msg                                                          => "BackToBack " & integer'image(i), blocking => false);
+                    check_axi_stream_padded(net, AxisSlave_c, toUslv(i + 1, Width_g), tuser => "00",
+                        msg                                                                 => "BackToBack " & integer'image(i), blocking => false);
                 end loop;
 
             ---------------------------------------------------------------------------------------
@@ -341,8 +342,8 @@ begin
 
                 -- Drain everything
                 for i in 0 to Depth_c - 1 loop
-                    check_axi_stream(net, AxisSlave_c, toUslv(i, Width_g), tuser => "00",
-                        msg                                                      => "StatusAndLevels drain " & integer'image(i), blocking => false);
+                    check_axi_stream_padded(net, AxisSlave_c, toUslv(i, Width_g), tuser => "00",
+                        msg                                                             => "StatusAndLevels drain " & integer'image(i), blocking => false);
                 end loop;
 
                 wait_until_idle(net, as_sync(AxisSlave_c));
@@ -406,8 +407,8 @@ begin
 
                 -- Everything written before is still delivered in order and unchanged
                 for i in 0 to Depth_c - 1 loop
-                    check_axi_stream(net, AxisSlave_c, toUslv(i, Width_g), tuser => "00",
-                        msg                                                      => "WriteFullFifo drain " & integer'image(i), blocking => false);
+                    check_axi_stream_padded(net, AxisSlave_c, toUslv(i, Width_g), tuser => "00",
+                        msg                                                             => "WriteFullFifo drain " & integer'image(i), blocking => false);
                 end loop;
 
             ---------------------------------------------------------------------------------------
@@ -428,8 +429,8 @@ begin
                 checkAlmEmpty('0', "one beat above the threshold");
 
                 -- Drain one beat, now exactly at the threshold
-                check_axi_stream(net, AxisSlave_c, toUslv(0, Width_g), tuser => "00",
-                    msg                                                      => "Threshold drain", blocking => false);
+                check_axi_stream_padded(net, AxisSlave_c, toUslv(0, Width_g), tuser => "00",
+                    msg                                                             => "Threshold drain", blocking => false);
                 wait_until_idle(net, as_sync(AxisSlave_c));
 
                 for i in 0 to 4 loop
@@ -440,8 +441,8 @@ begin
 
                 -- Drain the rest
                 for i in 1 to AlmEmptyLevel_c loop
-                    check_axi_stream(net, AxisSlave_c, toUslv(i, Width_g), tuser => "00",
-                        msg                                                      => "Threshold rest " & integer'image(i), blocking => false);
+                    check_axi_stream_padded(net, AxisSlave_c, toUslv(i, Width_g), tuser => "00",
+                        msg                                                             => "Threshold rest " & integer'image(i), blocking => false);
                 end loop;
 
             ---------------------------------------------------------------------------------------
@@ -540,9 +541,10 @@ begin
             TData  => In_Data
         );
 
-    vc_slave : entity vunit_lib.axi_stream_slave
+    vc_slave : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => AxisSlave_c
+            Slave      => AxisSlave_c,
+            Data_Width => Width_g
         )
         port map (
             AClk   => Clk,
