@@ -524,6 +524,18 @@ def add_configs(olo_tb):
         named_config(tb, RsCodes_c[code] | {'InterleaveDepth_g': depth, 'RandomStall_g': stall}, pre_config=cosim,
                      short_name=f'{code}-I={depth}-Stall={stall}')
 
+    ### olo_base_rs_decode ###
+    tb = olo_tb.test_bench('olo_base_rs_decode_tb')
+    cosim = load_cosim('olo_base_rs_decode')
+    for code, depth, stall in RsConfigs_c:
+        named_config(tb, RsCodes_c[code] | {'InterleaveDepth_g': depth, 'RandomStall_g': stall}, pre_config=cosim,
+                     short_name=f'{code}-I={depth}-Stall={stall}')
+    # Output of the check symbols
+    for code, depth, stall in [('ccsds16', 5, True), ('rs15', 2, False)]:
+        named_config(tb, RsCodes_c[code] | {'InterleaveDepth_g': depth, 'RandomStall_g': stall,
+                                            'OutputParity_g': True}, pre_config=cosim,
+                     short_name=f'{code}-I={depth}-Stall={stall}-OutputParity')
+
     ### olo_base_latency_comp ###
     latency_comp_tb = 'olo_base_latency_comp_tb'
     tb = olo_tb.test_bench(latency_comp_tb)  
