@@ -333,6 +333,7 @@ def add_configs(olo_tb):
                 continue    
             named_config(tb, {'RandomPackets_g': 10, 'RandomStall_g': True, 'FeatureSet_g' : FeatureSet, 'Optimization_g' : Optimization})
             named_config(tb, {'RandomPackets_g': 10, 'RandomStall_g': False, 'FeatureSet_g' : FeatureSet, 'Optimization_g' : Optimization, 'UsePacketSize_g': True}) #Some checks require non-random stall
+            named_config(tb, {'RandomPackets_g': 10, 'RandomStall_g': False, 'FeatureSet_g' : FeatureSet, 'Optimization_g' : Optimization, 'UsePacketSize_g': False}) #Packets limited by Depth_g only
             named_config(tb_hs, {'FeatureSet_g' : FeatureSet, 'Optimization_g' : Optimization})
 
     fifo_packet_tb_perf = 'olo_base_fifo_packet_perf_tb'
