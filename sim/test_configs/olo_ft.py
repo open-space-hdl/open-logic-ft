@@ -157,6 +157,9 @@ def add_configs(olo_tb):
     tb = olo_tb.test_bench('olo_ft_axi_master_simple_tb')
     for Width in [16, 32]:
         named_config(tb, {'AxiDataWidth_g': Width})
+    # Longer bursts (the 4 KB beat counter of the wrapped master is simulated in the axi area: the wrapped master's
+    # FIFO RAM of 2 * AxiMaxBeats_g wide words exceeds the default GHDL stack limit for 512 and 1024 bits)
+    named_config(tb, {'AxiDataWidth_g': 64, 'AxiMaxBeats_g': 64})
     named_config(tb, {'ImplRead_g': False})
     named_config(tb, {'ImplWrite_g': False})
 
@@ -164,6 +167,9 @@ def add_configs(olo_tb):
     tb = olo_tb.test_bench('olo_ft_axi_master_full_tb')
     for Width in [16, 32]:
         named_config(tb, {'AxiDataWidth_g': Width})
+    # Longer bursts (the 4 KB beat counter of the wrapped master is simulated in the axi area: the wrapped master's
+    # FIFO RAM of 2 * AxiMaxBeats_g wide words exceeds the default GHDL stack limit for 512 and 1024 bits)
+    named_config(tb, {'AxiDataWidth_g': 64, 'AxiMaxBeats_g': 64})
     named_config(tb, {'ImplRead_g': False})
     named_config(tb, {'ImplWrite_g': False})
 
