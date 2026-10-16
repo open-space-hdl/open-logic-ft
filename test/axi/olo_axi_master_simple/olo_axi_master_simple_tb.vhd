@@ -116,8 +116,10 @@ architecture sim of olo_axi_master_simple_tb is
     signal Rd_Ready     : std_logic                                                := '0';
     signal Wr_Done      : std_logic;
     signal Wr_Error     : std_logic;
+    signal Wr_ErrorResp : std_logic_vector(1 downto 0);
     signal Rd_Done      : std_logic;
     signal Rd_Error     : std_logic;
+    signal Rd_ErrorResp : std_logic_vector(1 downto 0);
     signal Rd_Last      : std_logic;
 
     -----------------------------------------------------------------------------------------------
@@ -263,27 +265,36 @@ architecture sim of olo_axi_master_simple_tb is
 
     end procedure;
 
-    procedure expectWrResponse (Response : Response_t) is
+    -- Code: expected response code of a failed command (Wr_ErrorResp, Rd_ErrorResp)
+    procedure expectWrResponse (
+        Response : Response_t;
+        Code     : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c) is
     begin
         wait until rising_edge(Clk) and ((Wr_Done = '1') or (Wr_Error = '1'));
         if Response = RespSuccess then
             check_equal(Wr_Error, '0', "Wrong Wr_Error");
             check_equal(Wr_Done, '1', "Wrong Wr_Done");
+            check_equal(Wr_ErrorResp, AxiResp_Okay_c, "Wrong Wr_ErrorResp");
         else
             check_equal(Wr_Error, '1', "Wrong Wr_Error");
             check_equal(Wr_Done, '0', "Wrong Wr_Done");
+            check_equal(Wr_ErrorResp, Code, "Wrong Wr_ErrorResp");
         end if;
     end procedure;
 
-    procedure expectRdResponse (Response : Response_t) is
+    procedure expectRdResponse (
+        Response : Response_t;
+        Code     : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c) is
     begin
         wait until rising_edge(Clk) and ((Rd_Done = '1') or (Rd_Error = '1'));
         if Response = RespSuccess then
             check_equal(Rd_Error, '0', "Wrong Rd_Error");
             check_equal(Rd_Done, '1', "Wrong Rd_Done");
+            check_equal(Rd_ErrorResp, AxiResp_Okay_c, "Wrong Rd_ErrorResp");
         else
             check_equal(Rd_Error, '1', "Wrong Rd_Error");
             check_equal(Rd_Done, '0', "Wrong Rd_Done");
+            check_equal(Rd_ErrorResp, Code, "Wrong Rd_ErrorResp");
         end if;
     end procedure;
 
@@ -722,6 +733,124 @@ begin
                 end if;
             end if;
 
+            -- *** Response codes ***
+            if run("SingleWrite-DecErr") then
+                if ImplWrite_g then
+                    -- Slave
+                    expect_aw(net, AxiSlave_c, X"0700");
+                    expect_w(net, AxiSlave_c, X"06");
+                    push_b(net, AxiSlave_c, resp => AxiResp_DecErr_c);
+                    -- Master
+                    pushCommand(net, WrCmdMaster_c, X"0700", 1);
+                    pushWrData(net, X"06");
+                    -- Blocking
+                    expectWrResponse(RespError, AxiResp_DecErr_c);
+                end if;
+            end if;
+
+            if run("SingleRead-DecErr") then
+                if ImplRead_g then
+                    -- Slave
+                    expect_ar(net, AxiSlave_c, X"0700");
+                    push_r(net, AxiSlave_c, X"24", error_code => AxiResp_DecErr_c);
+                    -- Master
+                    pushCommand(net, RdCmdMaster_c, X"0700", 1);
+                    expectRdData(net, X"24");
+                    -- Blocking
+                    expectRdResponse(RespError, AxiResp_DecErr_c);
+                end if;
+            end if;
+
+            -- The masters never request exclusive access: EXOKAY is a failure
+            if run("SingleRead-ExOkay") then
+                if ImplRead_g then
+                    -- Slave
+                    expect_ar(net, AxiSlave_c, X"0800");
+                    push_r(net, AxiSlave_c, X"25", error_code => AxiResp_ExOkay_c);
+                    -- Master
+                    pushCommand(net, RdCmdMaster_c, X"0800", 1);
+                    expectRdData(net, X"25");
+                    -- Blocking
+                    expectRdResponse(RespError, AxiResp_ExOkay_c);
+                end if;
+            end if;
+
+            if run("BurstWrite-FirstBurstDecErr") then
+                if ImplWrite_g and FixedBursts_c then
+                    -- 2 words before boundary, 6 after, 8 total, DECERR on the first burst
+                    -- Slave first burst
+                    expect_aw(net, AxiSlave_c, X"7000"-2*AxiDataWidth_g/8, len => 2);
+                    expect_w(net, AxiSlave_c, X"12", beats => 2);
+                    push_b(net, AxiSlave_c, resp => AxiResp_DecErr_c);
+                    -- Slave second burst
+                    expect_burst_write_aligned(net, AxiSlave_c, X"7000", X"14", 1, 6);
+                    -- Master
+                    pushCommand(net, WrCmdMaster_c, X"7000"-2*AxiDataWidth_g/8, 8);
+                    pushWrData(net, X"12", 1, 8);
+                    -- Blocking
+                    expectWrResponse(RespError, AxiResp_DecErr_c);
+                end if;
+            end if;
+
+            if run("BurstWrite-TwoErrors") then
+                if ImplWrite_g and FixedBursts_c then
+                    -- DECERR on the first burst, SLVERR on the second: the first one is reported
+                    -- Slave
+                    expect_aw(net, AxiSlave_c, X"9000"-2*AxiDataWidth_g/8, len => 2);
+                    expect_w(net, AxiSlave_c, X"12", beats => 2);
+                    push_b(net, AxiSlave_c, resp => AxiResp_DecErr_c);
+                    expect_aw(net, AxiSlave_c, X"9000", len => 6);
+                    expect_w(net, AxiSlave_c, X"14", beats => 6);
+                    push_b(net, AxiSlave_c, resp => AxiResp_SlvErr_c);
+                    -- Master
+                    pushCommand(net, WrCmdMaster_c, X"9000"-2*AxiDataWidth_g/8, 8);
+                    pushWrData(net, X"12", 1, 8);
+                    -- Blocking
+                    expectWrResponse(RespError, AxiResp_DecErr_c);
+                    -- The next write without error reports success and no code
+                    expect_single_write (net, AxiSlave_c, X"0900", X"35");
+                    pushCommand(net, WrCmdMaster_c, X"0900", 1);
+                    pushWrData(net, X"35");
+                    expectWrResponse(RespSuccess);
+                end if;
+            end if;
+
+            if run("BurstRead-MidBurstDecErr") then
+                if ImplRead_g and FixedBursts_c then
+                    -- One burst of 4 beats, DECERR on the second beat only
+                    -- Slave
+                    expect_ar(net, AxiSlave_c, X"0A00", len => 4);
+                    push_r(net, AxiSlave_c, X"20", beats => 4, error_code => AxiResp_DecErr_c, error_beat => 1);
+                    -- Master
+                    pushCommand(net, RdCmdMaster_c, X"0A00", 4);
+                    expectRdData(net, X"20", 1, 4);
+                    -- Blocking
+                    expectRdResponse(RespError, AxiResp_DecErr_c);
+                end if;
+            end if;
+
+            if run("BurstRead-TwoErrors") then
+                if ImplRead_g and FixedBursts_c then
+                    -- DECERR on the first beat of the first burst, SLVERR on all beats of the second: the first one
+                    -- is reported
+                    -- Slave
+                    expect_ar(net, AxiSlave_c, X"B000"-2*AxiDataWidth_g/8, len => 2);
+                    push_r(net, AxiSlave_c, X"12", beats => 2, error_code => AxiResp_DecErr_c, error_beat => 0);
+                    expect_ar(net, AxiSlave_c, X"B000", len => 6);
+                    push_r(net, AxiSlave_c, X"14", beats => 6, error_code => AxiResp_SlvErr_c);
+                    -- Master
+                    pushCommand(net, RdCmdMaster_c, X"B000"-2*AxiDataWidth_g/8, 8);
+                    expectRdData(net, X"12", 1, 8);
+                    -- Blocking
+                    expectRdResponse(RespError, AxiResp_DecErr_c);
+                    -- The next read without error reports success and no code
+                    push_single_read (net, AxiSlave_c, X"0B00", X"36");
+                    pushCommand(net, RdCmdMaster_c, X"0B00", 1);
+                    expectRdData(net, X"36");
+                    expectRdResponse(RespSuccess);
+                end if;
+            end if;
+
             -- Wait for idle
             wait_until_idle(net, as_sync(AxiSlave_c));
             wait_until_idle(net, as_sync(RdDataSlave_c));
@@ -734,6 +863,26 @@ begin
 
         -- TB done
         test_runner_cleanup(runner);
+    end process;
+
+    -----------------------------------------------------------------------------------------------
+    -- Response code checker: "00" outside the error pulses (after the first reset)
+    -----------------------------------------------------------------------------------------------
+    p_errresp : process (Clk) is
+        variable WasReset_v : boolean := false;
+    begin
+        if rising_edge(Clk) then
+            if Rst = '1' then
+                WasReset_v := true;
+            elsif WasReset_v then
+                if ImplWrite_g and Wr_Error /= '1' then
+                    check_equal(Wr_ErrorResp, AxiResp_Okay_c, "Wr_ErrorResp outside Wr_Error");
+                end if;
+                if ImplRead_g and Rd_Error /= '1' then
+                    check_equal(Rd_ErrorResp, AxiResp_Okay_c, "Rd_ErrorResp outside Rd_Error");
+                end if;
+            end if;
+        end if;
     end process;
 
     -----------------------------------------------------------------------------------------------
@@ -786,8 +935,10 @@ begin
             -- Response
             Wr_Done        => Wr_Done,
             Wr_Error       => Wr_Error,
+            Wr_ErrorResp   => Wr_ErrorResp,
             Rd_Done        => Rd_Done,
             Rd_Error       => Rd_Error,
+            Rd_ErrorResp   => Rd_ErrorResp,
             -- AXI Address Write Channel
             M_Axi_AwAddr   => AxiMs.aw_addr,
             M_Axi_AwValid  => AxiMs.aw_valid,
