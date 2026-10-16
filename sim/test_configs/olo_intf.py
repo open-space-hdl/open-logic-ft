@@ -46,6 +46,9 @@ def add_configs(olo_tb):
         named_config(tb, {'Tseg1_g': 5, 'Tseg2_g': 4, 'Sjw_g': 4, 'ClkBOffsetPpm_g': Offset}, pre_config=cosim)
     named_config(tb, {'AutoRecover_g': False}, pre_config=cosim)
     named_config(tb, {'SyncTmr_g': True}, pre_config=cosim)
+    # Maxima of the runtime bit timing (47 quanta of 1023 clock cycles, beyond the 25 quanta of Bosch 2.0
+    # section 10): only the short LongBit test
+    named_config(tb.test('LongBit'), {'Prescaler_g': 1023, 'Tseg1_g': 31, 'Tseg2_g': 15, 'Sjw_g': 4}, pre_config=cosim)
 
     ### olo_intf_debounce ###
     debounce_tb = 'olo_intf_debounce_tb'
