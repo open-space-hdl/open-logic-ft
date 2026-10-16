@@ -59,6 +59,7 @@ Packages with type declarations and functions used in _Open Logic_ internally or
 | [olo_base_pkg_logic](./base/olo_base_pkg_logic.md)         | Mathematic functions (e.g. _binaryToGray_)                   |
 | [olo_base_pkg_string](./base/olo_base_pkg_string.md)       | String functions (e.g. _toLower_)                            |
 | [olo_base_pkg_crc](./base/olo_base_pkg_crc.md)             | Crc Settings definitions (e.g. _Crc8_DvbS2_c_)               |
+| [olo_base_pkg_gf](./base/olo_base_pkg_gf.md)               | Galois field GF(2^m) arithmetic and Reed-Solomon code tables (e.g. _gfMult_) |
 | [olo_base_pkg_attribute](./base/olo_base_pkg_attribute.md) | Definition of synthesis attributes for different tools. **For internal use within Open Logic only** |
 
 ### Clock Crossings (_olo_base_cc_\<...\>_)
@@ -149,6 +150,8 @@ See [Conventions](./Conventions.md) for a description about TDM (time-division-m
 | [olo_base_crc_append](./base/olo_base_crc_append.md) | Append CRC to AXI4-Stream packets |
 | [olo_base_crc_check](./base/olo_base_crc_check.md) | Check CRC of AXI4-Stream packets and drop invalid packets |
 | [olo_base_chunker](./base/olo_base_chunker.md) | Split AXI4-Stream packets into chunks of a fixed number of beats (no padding, end of the input packet marked) |
+| [olo_base_rs_encode](./base/olo_base_rs_encode.md) | Reed-Solomon encoder (any GF(2^m) code, interleaving, shortened blocks, dual basis, e.g. CCSDS 131.0-B-5) |
+| [olo_base_rs_decode](./base/olo_base_rs_decode.md) | Reed-Solomon decoder (corrects up to t symbol errors per codeword, status per codeword) |
 | [olo_base_sample_hold](./base/olo_base_sample_hold.md) | Sample and hold for bit-vectors. Holds the last sampled value until a new sample is taken. |
 
 ## axi

@@ -282,6 +282,30 @@ entities:
       - name: "SyncTmr"
         generics:
           SyncTmr_g: true
+  # olo_base_rs_decode
+  - entity_name: "olo_base_rs_decode"
+    configurations:
+      - name: "ccsds-e16-i5"
+        generics:
+          FieldPolynomial_g: '"10000111"'
+          CodewordSymbols_g: 255
+          DataSymbols_g: 223
+          FirstRoot_g: 212
+          RootStep_g: 11
+          InterleaveDepth_g: 5
+          DualBasis_g: 117
+  # olo_base_rs_encode
+  - entity_name: "olo_base_rs_encode"
+    configurations:
+      - name: "ccsds-e16-i5"
+        generics:
+          FieldPolynomial_g: '"10000111"'
+          CodewordSymbols_g: 255
+          DataSymbols_g: 223
+          FirstRoot_g: 212
+          RootStep_g: 11
+          InterleaveDepth_g: 5
+          DualBasis_g: 117
   # olo_base_strobe_div
   - entity_name: "olo_base_strobe_div"
     configurations:
