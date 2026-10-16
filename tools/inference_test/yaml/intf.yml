@@ -3,6 +3,16 @@ files:
     - "../../../src/intf/**/*.vhd"  # Glob expressions for files to parse
 
 entities:
+  # olo_intf_can
+  - entity_name: "olo_intf_can"
+    configurations:
+      - name: "Default"
+        in_reduce:
+          Tx_Id: 29
+          Tx_Data: 64
+        out_reduce:
+          Rx_Id: 29
+          Rx_Data: 64
   # olo_intf_clk_meas
   - entity_name: "olo_intf_clk_meas"
     configurations:

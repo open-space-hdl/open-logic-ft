@@ -192,6 +192,7 @@ This area contains components related to interfacing to external components.
 | [olo_intf_uart](./intf/olo_intf_uart.md)             | UART                                                         |
 | [olo_intf_debounce](./intf/olo_intf_debounce.md)     | Debouncer (for bouncing signals from buttons and switches) - Includes double-stage synchronizers. |
 | [olo_intf_clk_meas](./intf/olo_intf_clk_meas.md)     | Measure the frequency of a clock.                            |
+| [olo_intf_can](./intf/olo_intf_can.md)               | CAN 2.0B controller - Standard and extended frames, error handling, fault confinement and runtime bit timing (helper _olo_intf_pkg_can_). |
 
 ## fix
 
