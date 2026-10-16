@@ -725,12 +725,12 @@ begin
 
             if run("OversizedPacket-Middle") then
                 testPacket(net, 3, 1);
-                pushPacket(net, Depth_c+1, 16, isDroppedAt => Depth_c); -- Ignored because oversized
+                pushPacket(net, Depth_c+1, 16, isDroppedAt => MaxPacketSize_c); -- Ignored because oversized
                 testPacket(net, 3, 32);
             end if;
 
             if run("OversizedPacket-First") then
-                pushPacket(net, Depth_c+1, 1, isDroppedAt => Depth_c); -- Ignored because oversized
+                pushPacket(net, Depth_c+1, 1, isDroppedAt => MaxPacketSize_c); -- Ignored because oversized
                 testPacket(net, 3, 16);
             end if;
 
@@ -742,8 +742,8 @@ begin
 
             if run("OversizedPacket-Multi") then
                 testPacket(net, 3, 1);
-                pushPacket(net, Depth_c+1, 16, isDroppedAt => Depth_c); -- Ignored because oversized
-                pushPacket(net, Depth_c+10, 32, isDroppedAt => Depth_c); -- Ignored because oversized
+                pushPacket(net, Depth_c+1, 16, isDroppedAt => MaxPacketSize_c); -- Ignored because oversized
+                pushPacket(net, Depth_c+10, 32, isDroppedAt => MaxPacketSize_c); -- Ignored because oversized
                 testPacket(net, 3, 48);
             end if;
 
