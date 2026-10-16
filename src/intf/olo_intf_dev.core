@@ -6,9 +6,11 @@ description : "local files (release plus WIP); Interfaces (e.g. I2C, synchronize
 filesets:
   rtl:
     files:
+      - "vhdl/olo_intf_can.vhd"
       - "vhdl/olo_intf_clk_meas.vhd"
       - "vhdl/olo_intf_debounce.vhd"
       - "vhdl/olo_intf_i2c_master.vhd"
+      - "vhdl/olo_intf_pkg_can.vhd"
       - "vhdl/olo_intf_spi_master.vhd"
       - "vhdl/olo_intf_spi_slave.vhd"
       - "vhdl/olo_intf_sync.vhd"

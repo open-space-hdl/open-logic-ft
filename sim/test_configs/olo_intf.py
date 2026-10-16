@@ -8,6 +8,17 @@
 # Imports
 # ---------------------------------------------------------------------------------------------------
 from .utils import named_config
+import importlib.util
+import os
+
+
+def load_cosim(tb_name):
+    """cosim() of test/intf/<tb_name>/cosim.py (the test folders are no Python packages)"""
+    path = os.path.join(os.path.dirname(__file__), '../../test/intf', tb_name, 'cosim.py')
+    spec = importlib.util.spec_from_file_location(f'{tb_name}_cosim', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.cosim
 
 # ---------------------------------------------------------------------------------------------------
 # Functionality
@@ -18,6 +29,23 @@ def add_configs(olo_tb):
     Add all intf testbench configurations to the VUnit Library
     :param olo_tb: Testbench library
     """
+
+    ### olo_intf_can ###
+    tb = olo_tb.test_bench('olo_intf_can_tb')
+    cosim = load_cosim('olo_intf_can')
+    # Bit timing: 10 time quanta (6 + 3, SJW 2) by default, SJW 1, 8 and 25 time quanta, one clock per time quantum
+    # (also with the shortest PHASE_SEG2 of 2 quanta, 2 clock cycles after the sample point), and the timing for an
+    # oscillator tolerance of 1.58 % (SJW 4, PHASE_SEG2 4) with a second node 1.5 % off
+    named_config(tb, {}, pre_config=cosim, short_name='default')
+    named_config(tb, {'Sjw_g': 1}, pre_config=cosim)
+    named_config(tb, {'Prescaler_g': 5, 'Tseg1_g': 4, 'Tseg2_g': 3, 'Sjw_g': 2}, pre_config=cosim)
+    named_config(tb, {'Prescaler_g': 2, 'Tseg1_g': 16, 'Tseg2_g': 8, 'Sjw_g': 4}, pre_config=cosim)
+    named_config(tb, {'Prescaler_g': 1, 'Tseg1_g': 16, 'Tseg2_g': 8, 'Sjw_g': 4}, pre_config=cosim)
+    named_config(tb, {'Prescaler_g': 1, 'Tseg1_g': 16, 'Tseg2_g': 2, 'Sjw_g': 2}, pre_config=cosim)
+    for Offset in [15000, -15000]:
+        named_config(tb, {'Tseg1_g': 5, 'Tseg2_g': 4, 'Sjw_g': 4, 'ClkBOffsetPpm_g': Offset}, pre_config=cosim)
+    named_config(tb, {'AutoRecover_g': False}, pre_config=cosim)
+    named_config(tb, {'SyncTmr_g': True}, pre_config=cosim)
 
     ### olo_intf_debounce ###
     debounce_tb = 'olo_intf_debounce_tb'
