@@ -80,8 +80,10 @@ entity olo_axi_master_full is
         -- Response
         Wr_Done         : out   std_logic;
         Wr_Error        : out   std_logic;
+        Wr_ErrorResp    : out   std_logic_vector(1 downto 0);
         Rd_Done         : out   std_logic;
         Rd_Error        : out   std_logic;
+        Rd_ErrorResp    : out   std_logic_vector(1 downto 0);
         -- AXI Address Write Channel
         M_Axi_AwAddr    : out   std_logic_vector(AxiAddrWidth_g - 1 downto 0);
         M_Axi_AwLen     : out   std_logic_vector(7 downto 0);
@@ -662,8 +664,10 @@ begin
             -- Response
             Wr_Done         => Wr_Done,
             Wr_Error        => Wr_Error,
+            Wr_ErrorResp    => Wr_ErrorResp,
             Rd_Done         => Rd_Done,
             Rd_Error        => Rd_Error,
+            Rd_ErrorResp    => Rd_ErrorResp,
             -- AXI Address Write Channel
             M_Axi_AwAddr    => M_Axi_AwAddr,
             M_Axi_AwLen     => M_Axi_AwLen,
