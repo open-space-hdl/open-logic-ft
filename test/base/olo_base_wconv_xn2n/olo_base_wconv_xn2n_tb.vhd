@@ -16,6 +16,9 @@ library vunit_lib;
     context vunit_lib.com_context;
     context vunit_lib.vc_context;
 
+library work;
+    use work.olo_test_axis_slave_pkg.all;
+
 library olo;
     use olo.olo_base_pkg_math.all;
     use olo.olo_base_pkg_logic.all;
@@ -52,7 +55,7 @@ architecture sim of olo_base_wconv_xn2n_tb is
         stall_config => new_stall_config(0.0, 0, 0)
     );
     constant AxisSlave_c  : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length => OutWidth_c,
+        data_length => padded_data_length(OutWidth_c),
         stall_config => new_stall_config(0.0, 0, 0)
     );
 
@@ -80,7 +83,7 @@ architecture sim of olo_base_wconv_xn2n_tb is
             if WordDelay_v > 0 ns then
                 wait for WordDelay_v;
             end if;
-            check_axi_stream(net, AxisSlave_c, toUslv(start+i, 4),
+            check_axi_stream_padded(net, AxisSlave_c, toUslv(start+i, 4),
                 tlast    => LastCheck_v,
                 blocking => false,
                 msg      => "data " & integer'image(start+i));
@@ -171,19 +174,19 @@ begin
                 if WidthRatio_g >= 2 then
                     -- Test word(0) enabled
                     checkCounerValue(net, 3, '0');
-                    check_axi_stream(net, AxisSlave_c, toUslv(7, OutWidth_c), tlast => '1', blocking => false, msg => "lastWord a");
+                    check_axi_stream_padded(net, AxisSlave_c, toUslv(7, OutWidth_c), tlast => '1', blocking => false, msg => "lastWord a");
                     push_axi_stream(net, AxisMaster_c, counterValue(3), tuser => onesVector(WidthRatio_g), tlast => '0');
                     push_axi_stream(net, AxisMaster_c, toUslv(7, inWidth_c), tuser => toUslv(1, WidthRatio_g), tlast => '1');
                     -- Test word(1) enabled
                     checkCounerValue(net, 4, '0');
-                    check_axi_stream(net, AxisSlave_c, toUslv(9, OutWidth_c), tlast => '1', blocking => false, msg => "lastWord b");
+                    check_axi_stream_padded(net, AxisSlave_c, toUslv(9, OutWidth_c), tlast => '1', blocking => false, msg => "lastWord b");
                     push_axi_stream(net, AxisMaster_c, counterValue(4), tuser => onesVector(WidthRatio_g), tlast => '0');
                     push_axi_stream(net, AxisMaster_c, toUslv(9*16, inWidth_c), tuser => toUslv(2#10#, WidthRatio_g), tlast => '1');
                     -- Test words 0 and 2 enabled
                     if WidthRatio_g >= 3 then
                         checkCounerValue(net, 5, '0');
-                        check_axi_stream(net, AxisSlave_c, toUslv(5, OutWidth_c), tlast => '0', blocking => false, msg => "first word c");
-                        check_axi_stream(net, AxisSlave_c, toUslv(3, OutWidth_c), tlast => '1', blocking => false, msg => "last word c");
+                        check_axi_stream_padded(net, AxisSlave_c, toUslv(5, OutWidth_c), tlast => '0', blocking => false, msg => "first word c");
+                        check_axi_stream_padded(net, AxisSlave_c, toUslv(3, OutWidth_c), tlast => '1', blocking => false, msg => "last word c");
                         push_axi_stream(net, AxisMaster_c, counterValue(5), tuser => onesVector(WidthRatio_g), tlast => '0');
                         push_axi_stream(net, AxisMaster_c, toUslv(3*2**8+5, inWidth_c), tuser => toUslv(2#101#, WidthRatio_g), tlast => '1');
                     end if;
@@ -243,9 +246,10 @@ begin
             TUser  => In_WordEna
         );
 
-    vc_response : entity vunit_lib.axi_stream_slave
+    vc_response : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => AxisSlave_c
+            Slave      => AxisSlave_c,
+            Data_Width => OutWidth_c
         )
         port map (
             AClk   => Clk,

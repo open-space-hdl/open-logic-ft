@@ -15,6 +15,9 @@ library vunit_lib;
     context vunit_lib.com_context;
     context vunit_lib.vc_context;
 
+library work;
+    use work.olo_test_axis_slave_pkg.all;
+
 library olo;
     use olo.olo_base_pkg_math.all;
     use olo.olo_base_pkg_logic.all;
@@ -58,7 +61,7 @@ architecture sim of olo_ft_ecc_decode_tb is
         stall_config => new_stall_config(StallProb_c, StallMin_c, StallMax_c)
     );
     constant AxisSlave_c  : axi_stream_slave_t  := new_axi_stream_slave (
-        data_length  => Width_g,
+        data_length  => padded_data_length(Width_g),
         user_length  => 2,
         stall_config => new_stall_config(StallProb_c, StallMin_c, StallMax_c)
     );
@@ -109,8 +112,8 @@ architecture sim of olo_ft_ecc_decode_tb is
         ExpData_v     := eccCorrectData(EffCodeword_v, SynPar_v, Width_g);
 
         push_axi_stream(net, AxisMaster_c, Codeword_v);
-        check_axi_stream(net, AxisSlave_c, ExpData_v, tuser => ExpSec & ExpDed,
-            msg                                             => Message_c, blocking => false);
+        check_axi_stream_padded(net, AxisSlave_c, ExpData_v, tuser => ExpSec & ExpDed,
+            msg                                                    => Message_c, blocking => false);
     end procedure;
 
 begin
@@ -290,9 +293,10 @@ begin
             TData  => In_Codeword
         );
 
-    vc_response : entity vunit_lib.axi_stream_slave
+    vc_response : entity work.olo_test_axis_slave_vc
         generic map (
-            Slave => AxisSlave_c
+            Slave      => AxisSlave_c,
+            Data_Width => Width_g
         )
         port map (
             AClk   => Clk,
