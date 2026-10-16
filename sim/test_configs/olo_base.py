@@ -520,6 +520,8 @@ def add_configs(olo_tb):
     ### olo_base_rs_encode ###
     tb = olo_tb.test_bench('olo_base_rs_encode_tb')
     cosim = load_cosim('olo_base_rs_encode')
+    # NVC collects garbage only when the heap is full: a small heap bounds the memory of the many GF temporaries
+    tb.set_sim_option('nvc.heap_size', '256M')
     for code, depth, stall in RsConfigs_c:
         named_config(tb, RsCodes_c[code] | {'InterleaveDepth_g': depth, 'RandomStall_g': stall}, pre_config=cosim,
                      short_name=f'{code}-I={depth}-Stall={stall}')
@@ -527,6 +529,8 @@ def add_configs(olo_tb):
     ### olo_base_rs_decode ###
     tb = olo_tb.test_bench('olo_base_rs_decode_tb')
     cosim = load_cosim('olo_base_rs_decode')
+    # NVC collects garbage only when the heap is full: a small heap bounds the memory of the many GF temporaries
+    tb.set_sim_option('nvc.heap_size', '256M')
     for code, depth, stall in RsConfigs_c:
         named_config(tb, RsCodes_c[code] | {'InterleaveDepth_g': depth, 'RandomStall_g': stall}, pre_config=cosim,
                      short_name=f'{code}-I={depth}-Stall={stall}')
