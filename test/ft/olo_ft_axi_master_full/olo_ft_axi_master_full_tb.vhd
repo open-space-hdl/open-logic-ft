@@ -36,7 +36,8 @@ entity olo_ft_axi_master_full_tb is
         AxiDataWidth_g : natural range 16 to 1024 := 32;
         AxiMaxBeats_g  : natural range 1 to 256   := 16;
         ImplRead_g     : boolean                  := true;
-        ImplWrite_g    : boolean                  := true
+        ImplWrite_g    : boolean                  := true;
+        EccPipeline_g  : natural range 0 to 2     := 0
     );
 end entity;
 
@@ -136,6 +137,13 @@ architecture sim of olo_ft_axi_master_full_tb is
     signal Wr_ErrInj_Valid   : std_logic                                                := '0';
     signal Rd_ErrInj_BitFlip : std_logic_vector(RdCodewordWid_c - 1 downto 0)           := (others => '0');
     signal Rd_ErrInj_Valid   : std_logic                                                := '0';
+
+    -- Clock cycles of the first beat through the master: R beat to Rd_Valid, accepted Wr beat to WValid.
+    -- With EccPipeline_g = 0 they are RdLatencyPipe0_c and WrLatencyPipe0_c, every decoder stage adds one.
+    constant RdLatencyPipe0_c : natural := 7;
+    constant WrLatencyPipe0_c : natural := 10;
+    signal RdLatency          : natural := 0;
+    signal WrLatency          : natural := 0;
 
     -- Write-flag pulse counters (Wr_EccSec/Wr_EccDed are one-cycle pulses)
     signal CntClr   : std_logic := '0';
@@ -468,6 +476,36 @@ begin
                 end if;
 
             ---------------------------------------------------------------------------------------
+            elsif run("ReadLatency") then
+                -- Every stage of the ECC decoder pipeline (EccPipeline_g) adds one clock cycle between the R beat
+                -- and Rd_Valid
+
+                if ImplRead_g then
+                    push_single_read(net, AxiSlave_c, x"0300", x"1357");
+                    pushCommand(net, RdCmdMaster_c, x"00000300", ByteWidth_c);
+                    expectRdData(net, x"1357");
+                    expectRdResponse(RespSuccess);
+                    -- The beat leaves the read buffer after Rd_Done
+                    wait_until_idle(net, as_sync(RdDataSlave_c));
+                    check_equal(RdLatency, RdLatencyPipe0_c + EccPipeline_g, "Clock cycles from the R beat to Rd_Valid");
+                end if;
+
+            ---------------------------------------------------------------------------------------
+            elsif run("WriteLatency") then
+                -- Every stage of the ECC decoder pipeline (EccPipeline_g) adds one clock cycle between the accepted
+                -- write beat and WValid. The command is accepted before the data, so the data path sets the latency.
+
+                if ImplWrite_g then
+                    expect_single_write(net, AxiSlave_c, x"1300", x"2468");
+                    pushCommand(net, WrCmdMaster_c, x"00001300", ByteWidth_c);
+                    wait_until_idle(net, as_sync(WrCmdMaster_c));
+                    wait for 10 * Clk_Period_c;
+                    pushWrData(net, x"2468");
+                    expectWrResponse(RespSuccess);
+                    check_equal(WrLatency, WrLatencyPipe0_c + EccPipeline_g, "Clock cycles from the write beat to WValid");
+                end if;
+
+            ---------------------------------------------------------------------------------------
             elsif run("FixedWrite") then
                 -- CmdWr_Fixed passes through: FIXED bursts of at most 16 beats at the AXI word of the command
                 -- address (its low bits are ignored)
@@ -713,6 +751,56 @@ begin
     Clk <= not Clk after 0.5 * Clk_Period_c;
 
     -----------------------------------------------------------------------------------------------
+    -- Clock cycles of the first beat through the master
+    -----------------------------------------------------------------------------------------------
+    p_latency : process (Clk) is
+        variable RdRun_v  : boolean := false;
+        variable RdSeen_v : boolean := false;
+        variable RdCnt_v  : natural := 0;
+        variable WrRun_v  : boolean := false;
+        variable WrSeen_v : boolean := false;
+        variable WrCnt_v  : natural := 0;
+    begin
+        if rising_edge(Clk) then
+            if Rst = '1' then
+                RdRun_v   := false;
+                RdSeen_v  := false;
+                WrRun_v   := false;
+                WrSeen_v  := false;
+                RdLatency <= 0;
+                WrLatency <= 0;
+            else
+
+                -- From the first R beat to the first Rd_Valid
+                if RdRun_v then
+                    RdCnt_v := RdCnt_v + 1;
+                    if Rd_Valid = '1' then
+                        RdLatency <= RdCnt_v;
+                        RdRun_v   := false;
+                    end if;
+                elsif AxiSm.r_valid = '1' and AxiMs.r_ready = '1' and not RdSeen_v then
+                    RdSeen_v := true;
+                    RdRun_v  := true;
+                    RdCnt_v  := 0;
+                end if;
+
+                -- From the first accepted write beat to the first WValid
+                if WrRun_v then
+                    WrCnt_v := WrCnt_v + 1;
+                    if AxiMs.w_valid = '1' then
+                        WrLatency <= WrCnt_v;
+                        WrRun_v   := false;
+                    end if;
+                elsif Wr_Valid = '1' and Wr_Ready = '1' and not WrSeen_v then
+                    WrSeen_v := true;
+                    WrRun_v  := true;
+                    WrCnt_v  := 0;
+                end if;
+            end if;
+        end if;
+    end process;
+
+    -----------------------------------------------------------------------------------------------
     -- Write-flag pulse counters
     -----------------------------------------------------------------------------------------------
     p_wrcnt : process (Clk) is
@@ -749,7 +837,8 @@ begin
             DataFifoDepth_g           => DataFifoDepth_c,
             UserDataWidth_g           => UserDataWidth_c,
             ImplRead_g                => ImplRead_g,
-            ImplWrite_g               => ImplWrite_g
+            ImplWrite_g               => ImplWrite_g,
+            EccPipeline_g             => EccPipeline_g
         )
         port map (
             Clk               => Clk,

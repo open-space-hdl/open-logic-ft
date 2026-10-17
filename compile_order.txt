@@ -42,6 +42,7 @@ src/base/vhdl/olo_base_pkg_gf.vhd
 src/base/vhdl/olo_base_rs_encode.vhd
 src/base/vhdl/olo_base_rs_decode.vhd
 src/base/vhdl/olo_base_fifo_sync.vhd
+src/ft/vhdl/olo_ft_private_fifo_stream.vhd
 src/ft/vhdl/olo_ft_fifo_sync.vhd
 src/base/vhdl/olo_base_flowctrl_handler.vhd
 src/base/vhdl/olo_base_fifo_packet.vhd

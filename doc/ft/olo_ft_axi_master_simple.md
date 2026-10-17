@@ -19,7 +19,9 @@ behavior match [olo_axi_master_simple](../axi/olo_axi_master_simple.md); command
 interface pass through unchanged.
 
 The bulk write/read data buffering happens in SECDED-protected
-[olo_ft_fifo_sync](./olo_ft_fifo_sync.md) instances where the byte enables (write side) and the last flag
+[olo_ft_private_fifo_stream](./olo_ft_private_fifo_stream.md) instances (the data path of
+[olo_ft_fifo_sync](./olo_ft_fifo_sync.md) with an optional decoder pipeline) where the byte enables (write
+side) and the last flag
 (read side) are part of the ECC codeword, so no data or framing sideband is stored unprotected. The wrapped
 master runs with small internal FIFOs that only cover the burst-issuance window and are implemented in
 flip-flops by default, coverable by vendor TMR.
@@ -34,6 +36,7 @@ semantics. Differences and additions:
 | DataFifoDepth_g   | positive | 1024       | Number of entries of the **ECC-protected** write/read data buffers (in words). The internal FIFOs of the wrapped master are sized separately (fixed at 2 x _AxiMaxBeats_g_). |
 | RamStyle_g        | string  | "auto"      | RAM style of the ECC-protected data buffers. Any medium is acceptable here because the content is a full ECC codeword. |
 | IntFifoRamStyle_g | string  | "registers" | RAM style of the wrapped master's five internal FIFOs. The default "registers" keeps them in flip-flops so vendor TMR covers them. Overriding this to a RAM primitive re-introduces non-ECC-protected RAM state and is discouraged for fault-tolerant designs (see [Fault-Tolerant Storage](#fault-tolerant-storage)). |
+| EccPipeline_g     | natural | 0           | Register stages in the ECC decoders of both data buffers (range _0..2_), with the meaning of [olo_ft_ram_sdp](./olo_ft_ram_sdp.md): 0 = combinational decode, 1 = one register at the decoder output, 2 = one register between the syndrome and the correction plus the output register. The stages add _EccPipeline_g_ clock cycles of latency to the read data and to the write data on their way to the wrapped master; the throughput stays one beat per clock cycle. See [Clock Frequency](./olo_ft_axi_master_simple.md#clock-frequency). |
 
 ## Interfaces
 
@@ -53,8 +56,9 @@ and _Rd_ErrorResp_), write-data, read-data and AXI interfaces are identical to
 
 ### Error Injection (optional)
 
-These ports drive the injection latches of the two internal [olo_ft_fifo_sync](./olo_ft_fifo_sync.md)
-instances. Leave them unconnected for normal operation; see
+These ports drive the injection latches of the two internal
+[olo_ft_private_fifo_stream](./olo_ft_private_fifo_stream.md) instances. Leave them unconnected for normal
+operation; see
 [Open Logic Fault-Tolerance Principles - Error Injection](./olo_ft_principles.md#error-injection).
 
 | Name              | In/Out | Length                                                                | Default | Description                                                  |
@@ -69,12 +73,15 @@ instances. Leave them unconnected for normal operation; see
 ### Architecture
 
 ```text
-User Wr --{Be & Data codeword}--> olo_ft_fifo_sync --> olo_axi_master_simple --> AXI AW/W/B
-          (ECC bulk buffer,        (write buffer)      (internal FIFOs:
-           DataFifoDepth_g)                             2 x AxiMaxBeats_g, registers)
+User Wr --{Be & Data codeword}--> ECC FIFO --> olo_axi_master_simple --> AXI AW/W/B
+                                  write        internal FIFOs:
+                                  buffer       2 x AxiMaxBeats_g, registers
 
-AXI AR/R --> olo_axi_master_simple --> olo_ft_fifo_sync --{Last & Data codeword}--> User Rd
-                                       (read buffer, ECC bulk, DataFifoDepth_g)
+AXI AR/R --> olo_axi_master_simple --> ECC FIFO --{Last & Data codeword}--> User Rd
+                                       read buffer
+
+ECC FIFO: olo_ft_private_fifo_stream, DataFifoDepth_g entries
+          (encoder, olo_base_fifo_sync, decoder with EccPipeline_g stages)
 ```
 
 The wrapped master's user-side data interfaces are plain valid/ready streams, so the bulk buffering moves
@@ -83,12 +90,42 @@ internal FIFO whenever it has room, and the high/low-latency command gating of t
 its internal FIFO level) works unchanged. On the read side, the external buffer continuously drains the
 internal FIFO, so read bursts flow at line rate; the data then waits ECC-protected until the user consumes
 it. Compared to the base entity, the only observable differences are a few clock cycles of buffer
-fall-through latency and that _Wr_Ready_/_Rd_Valid_ reflect the external buffer state.
+fall-through latency (plus _EccPipeline_g_ per buffer) and that _Wr_Ready_/_Rd_Valid_ reflect the external
+buffer state.
+
+### Clock Frequency
+
+The ECC decode after the RAM output of each data buffer is the critical path of the entity, and it grows with
+the data width: the syndrome is a parity tree over the whole codeword and its result fans out to every data
+bit. _EccPipeline_g_ = 1 registers the decoder output, _EccPipeline_g_ = 2 also splits the syndrome from the
+correction.
+
+Maximum frequency after place and route (Libero SoC 2025.2, PolarFire SoC MPFS250T, speed grade STD) with
+registers on all ports, _AxiAddrWidth_g_ = 32, _AxiMaxBeats_g_ = 4, _AxiMaxOpenTransactions_g_ = 4,
+_UserTransactionSizeBits_g_ = 16 and _DataFifoDepth_g_ = 256:
+
+| _AxiDataWidth_g_ | _EccPipeline_g_ |      Fmax |
+| ---------------: | --------------: | --------: |
+|              512 |               0 |  85.9 MHz |
+|              512 |               1 |  86.7 MHz |
+|              512 |               2 | 146.0 MHz |
+|             1024 |               0 |  71.4 MHz |
+|             1024 |               1 |  78.3 MHz |
+|             1024 |               2 | 130.0 MHz |
+
+In every configuration the critical path starts at the RAM output of the write buffer. With _EccPipeline_g_ = 0
+and 1 it contains the whole decode and ends in the write data FIFO of the wrapped master or in the decoder output
+register, so the register of _EccPipeline_g_ = 1 gains little here. With _EccPipeline_g_ = 2 it ends at the
+register after the syndrome.
 
 ### Fault-Tolerant Storage
 
 - **Long-residency data** (payload waiting for commands or bus grants, read data waiting for the user)
   lives in the ECC-protected buffers; a single upset per codeword is corrected and reported.
+- **The decoder pipeline registers** of _EccPipeline_g_ hold up to 2 x _EccPipeline_g_ words per buffer in
+  flip-flops outside the ECC: the output stage holds corrected words, and with _EccPipeline_g_ = 2 the first
+  stage holds the codeword with its syndrome, so an upset there after the syndrome is computed passes uncorrected
+  and unreported. Like other control logic, these registers must be covered by vendor TMR.
 - **The wrapped master's five internal FIFOs** (two data FIFOs covering the in-flight burst window, three
   small transaction/response FIFOs) are implemented in flip-flops with the default
   `IntFifoRamStyle_g = "registers"` and must be covered by vendor TMR (`syn_radhardlevel = "tmr"`) like all

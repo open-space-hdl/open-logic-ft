@@ -8,7 +8,7 @@
 ---------------------------------------------------------------------------------------------------
 -- ECC-protected AXI4 master with unaligned-access support and width conversion. Composes
 -- olo_axi_master_full with external SECDED-protected data buffers: the bulk write/read data
--- buffering happens in olo_ft_fifo_sync instances (the last flag is part of the codeword), while
+-- buffering happens in two ECC FIFOs (the last flag is part of the codeword), while
 -- the wrapped master runs with small, register-based internal FIFOs coverable by vendor TMR.
 --
 -- Documentation:
@@ -44,7 +44,8 @@ entity olo_ft_axi_master_full is
         ImplWrite_g               : boolean                  := true;
         RamBehavior_g             : string                   := "RBW";
         RamStyle_g                : string                   := "auto";
-        IntFifoRamStyle_g         : string                   := "registers"
+        IntFifoRamStyle_g         : string                   := "registers";
+        EccPipeline_g             : natural range 0 to 2     := 0
     );
     port (
         -- Control Signals
@@ -164,10 +165,11 @@ begin
     -----------------------------------------------------------------------------------------------
     g_write : if ImplWrite_g generate
 
-        i_wr_buf : entity work.olo_ft_fifo_sync
+        i_wr_buf : entity work.olo_ft_private_fifo_stream
             generic map (
                 Width_g       => WrBufWidth_c,
                 Depth_g       => DataFifoDepth_g,
+                EccPipeline_g => EccPipeline_g,
                 RamStyle_g    => RamStyle_g,
                 RamBehavior_g => RamBehavior_g
             )
@@ -205,10 +207,11 @@ begin
 
         RdBuf_InData <= MRd_Last & MRd_Data;
 
-        i_rd_buf : entity work.olo_ft_fifo_sync
+        i_rd_buf : entity work.olo_ft_private_fifo_stream
             generic map (
                 Width_g       => RdBufWidth_c,
                 Depth_g       => DataFifoDepth_g,
+                EccPipeline_g => EccPipeline_g,
                 RamStyle_g    => RamStyle_g,
                 RamBehavior_g => RamBehavior_g
             )

@@ -18,6 +18,7 @@ filesets:
       - "vhdl/olo_ft_fifo_packet.vhd"
       - "vhdl/olo_ft_fifo_sync.vhd"
       - "vhdl/olo_ft_pkg_ecc.vhd"
+      - "vhdl/olo_ft_private_fifo_stream.vhd"
       - "vhdl/olo_ft_private_scrubber.vhd"
       - "vhdl/olo_ft_ram_sdp.vhd"
       - "vhdl/olo_ft_ram_sdp_scrub.vhd"
