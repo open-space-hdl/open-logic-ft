@@ -37,8 +37,9 @@ semantics. Differences and additions:
 
 ## Interfaces
 
-The command, response (including the response codes _Wr_ErrorResp_ and _Rd_ErrorResp_), write-data,
-read-data and AXI interfaces are identical to
+The command (including _CmdWr_Fixed_ and _CmdRd_Fixed_ for
+[FIXED bursts](../axi/olo_axi_master_simple.md#fixed-bursts)), response (including the response codes _Wr_ErrorResp_
+and _Rd_ErrorResp_), write-data, read-data and AXI interfaces are identical to
 [olo_axi_master_simple](../axi/olo_axi_master_simple.md). Additional ft ports:
 
 ### Error Status

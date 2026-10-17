@@ -54,12 +54,14 @@ entity olo_ft_axi_master_full is
         CmdWr_Addr        : in    std_logic_vector(AxiAddrWidth_g - 1 downto 0)                        := (others => '0');
         CmdWr_Size        : in    std_logic_vector(UserTransactionSizeBits_g - 1 downto 0)             := (others => '0');
         CmdWr_LowLat      : in    std_logic                                                            := '0';
+        CmdWr_Fixed       : in    std_logic                                                            := '0';
         CmdWr_Valid       : in    std_logic                                                            := '0';
         CmdWr_Ready       : out   std_logic;
         -- User Command Interface Read
         CmdRd_Addr        : in    std_logic_vector(AxiAddrWidth_g - 1 downto 0)                        := (others => '0');
         CmdRd_Size        : in    std_logic_vector(UserTransactionSizeBits_g - 1 downto 0)             := (others => '0');
         CmdRd_LowLat      : in    std_logic                                                            := '0';
+        CmdRd_Fixed       : in    std_logic                                                            := '0';
         CmdRd_Valid       : in    std_logic                                                            := '0';
         CmdRd_Ready       : out   std_logic;
         -- Write Data
@@ -260,11 +262,13 @@ begin
             CmdWr_Addr    => CmdWr_Addr,
             CmdWr_Size    => CmdWr_Size,
             CmdWr_LowLat  => CmdWr_LowLat,
+            CmdWr_Fixed   => CmdWr_Fixed,
             CmdWr_Valid   => CmdWr_Valid,
             CmdWr_Ready   => CmdWr_Ready,
             CmdRd_Addr    => CmdRd_Addr,
             CmdRd_Size    => CmdRd_Size,
             CmdRd_LowLat  => CmdRd_LowLat,
+            CmdRd_Fixed   => CmdRd_Fixed,
             CmdRd_Valid   => CmdRd_Valid,
             CmdRd_Ready   => CmdRd_Ready,
             Wr_Data       => WrBuf_OutData,

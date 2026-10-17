@@ -58,12 +58,14 @@ entity olo_axi_master_simple is
         CmdWr_Addr      : in    std_logic_vector(AxiAddrWidth_g - 1 downto 0)            := (others => '0');
         CmdWr_Size      : in    std_logic_vector(UserTransactionSizeBits_g - 1 downto 0) := (others => '0');
         CmdWr_LowLat    : in    std_logic                                                := '0';
+        CmdWr_Fixed     : in    std_logic                                                := '0';
         CmdWr_Valid     : in    std_logic                                                := '0';
         CmdWr_Ready     : out   std_logic;
         -- User Command Interface
         CmdRd_Addr      : in    std_logic_vector(AxiAddrWidth_g - 1 downto 0)            := (others => '0');
         CmdRd_Size      : in    std_logic_vector(UserTransactionSizeBits_g - 1 downto 0) := (others => '0');
         CmdRd_LowLat    : in    std_logic                                                := '0';
+        CmdRd_Fixed     : in    std_logic                                                := '0';
         CmdRd_Valid     : in    std_logic                                                := '0';
         CmdRd_Ready     : out   std_logic;
         -- Write Data
@@ -133,6 +135,7 @@ architecture rtl of olo_axi_master_simple is
 
     constant BeatsBits_c     : natural := log2ceil(AxiMaxBeats_g + 1);
     constant MaxBeatsNoCmd_c : natural := max(AxiMaxBeats_g * AxiMaxOpenTransactions_g, DataFifoDepth_g);
+    constant FixedMaxBeats_c : natural := work.olo_base_pkg_math.min(AxiMaxBeats_g, 16); -- AXI4: FIXED bursts have at most 16 beats
 
     -- *** Type Definitions ***
     type WriteTfGen_t is (Idle_s, MaxCalc_s, GenTf_s, WriteTf_s);
@@ -163,6 +166,7 @@ architecture rtl of olo_axi_master_simple is
         WrAddr          : unsigned(CmdWr_Addr'range);
         WrBeats         : unsigned(CmdWr_Size'range);
         WrLowLat        : std_logic;
+        WrFixed         : std_logic;
         WrMaxBeats      : unsigned(BeatsBits_c - 1 downto 0);
         WrTfBeats       : unsigned(BeatsBits_c - 1 downto 0);
         WrTfVld         : std_logic;
@@ -188,6 +192,7 @@ architecture rtl of olo_axi_master_simple is
         -- AXI Signals
         M_Axi_AwAddr    : std_logic_vector(M_Axi_AwAddr'range);
         M_Axi_AwLen     : std_logic_vector(M_Axi_AwLen'range);
+        M_Axi_AwBurst   : std_logic_vector(M_Axi_AwBurst'range);
         M_Axi_AwValid   : std_logic;
         M_Axi_WLast     : std_logic;
 
@@ -202,6 +207,7 @@ architecture rtl of olo_axi_master_simple is
         RdAddr          : unsigned(CmdRd_Addr'range);
         RdBeats         : unsigned(CmdRd_Size'range);
         RdLowLat        : std_logic;
+        RdFixed         : std_logic;
         RdMaxBeats      : unsigned(BeatsBits_c - 1 downto 0);
         RdTfBeats       : unsigned(BeatsBits_c - 1 downto 0);
         RdTfVld         : std_logic;
@@ -222,6 +228,7 @@ architecture rtl of olo_axi_master_simple is
         -- AXI Signals
         M_Axi_ArAddr    : std_logic_vector(M_Axi_ArAddr'range);
         M_Axi_ArLen     : std_logic_vector(M_Axi_ArLen'range);
+        M_Axi_ArBurst   : std_logic_vector(M_Axi_ArBurst'range);
         M_Axi_ArValid   : std_logic;
     end record;
 
@@ -305,12 +312,16 @@ begin
                         v.WrAddr          := unsigned(addrMasked(CmdWr_Addr));
                         v.WrBeats         := unsigned(CmdWr_Size);
                         v.WrLowLat        := CmdWr_LowLat;
+                        v.WrFixed         := CmdWr_Fixed;
                         v.WriteTfGenState := MaxCalc_s;
                     end if;
 
                 when MaxCalc_s =>
                     WrMax4kBeats_v := resize(unsigned('0' & not r.WrAddr(11 downto UnusedAddrBits_c)) + 1, WrMax4kBeats_v'length);
-                    if WrMax4kBeats_v > AxiMaxBeats_g then
+                    -- A FIXED burst accesses one address: no 4k limit
+                    if r.WrFixed = '1' then
+                        v.WrMaxBeats := to_unsigned(FixedMaxBeats_c, BeatsBits_c);
+                    elsif WrMax4kBeats_v > AxiMaxBeats_g then
                         v.WrMaxBeats := to_unsigned(AxiMaxBeats_g, BeatsBits_c);
                     else
                         v.WrMaxBeats := resize(WrMax4kBeats_v, BeatsBits_c);
@@ -333,7 +344,10 @@ begin
                         v.WrTfVld := '0';
                         v.WrBeats := r.WrBeats - resize(r.WrTfBeats, r.WrBeats'length);
                         -- Shift at address width: natural * unsigned would truncate the bytes per beat to the width of WrTfBeats
-                        v.WrAddr := r.WrAddr + shift_left(resize(r.WrTfBeats, v.WrAddr'length), UnusedAddrBits_c);
+                        -- .. A FIXED burst keeps the address
+                        if r.WrFixed = '0' then
+                            v.WrAddr := r.WrAddr + shift_left(resize(r.WrTfBeats, v.WrAddr'length), UnusedAddrBits_c);
+                        end if;
                         if r.WrTfIsLast = '1' then
                             v.WriteTfGenState := Idle_s;
                         else
@@ -368,6 +382,11 @@ begin
                         v.AwCmdSent     := '1';
                         v.AwCmdSize     := r.WrTfBeats;
                         v.AwCmdSizeMin1 := r.WrTfBeats - 1;
+                        if r.WrFixed = '1' then
+                            v.M_Axi_AwBurst := AxiBurst_Fixed_c;
+                        else
+                            v.M_Axi_AwBurst := AxiBurst_Incr_c;
+                        end if;
                     end if;
 
                 when Wait_s =>
@@ -497,12 +516,16 @@ begin
                         v.RdAddr         := unsigned(addrMasked(CmdRd_Addr));
                         v.RdBeats        := unsigned(CmdRd_Size);
                         v.RdLowLat       := CmdRd_LowLat;
+                        v.RdFixed        := CmdRd_Fixed;
                         v.ReadTfGenState := MaxCalc_s;
                     end if;
 
                 when MaxCalc_s =>
                     RdMax4kBeats_v := resize(unsigned('0' & not r.RdAddr(11 downto UnusedAddrBits_c)) + 1, RdMax4kBeats_v'length);
-                    if RdMax4kBeats_v > AxiMaxBeats_g then
+                    -- A FIXED burst accesses one address: no 4k limit
+                    if r.RdFixed = '1' then
+                        v.RdMaxBeats := to_unsigned(FixedMaxBeats_c, BeatsBits_c);
+                    elsif RdMax4kBeats_v > AxiMaxBeats_g then
                         v.RdMaxBeats := to_unsigned(AxiMaxBeats_g, BeatsBits_c);
                     else
                         v.RdMaxBeats := resize(RdMax4kBeats_v, BeatsBits_c);
@@ -525,7 +548,10 @@ begin
                         v.RdTfVld := '0';
                         v.RdBeats := r.RdBeats - resize(r.RdTfBeats, r.RdBeats'length);
                         -- Shift at address width: natural * unsigned would truncate the bytes per beat to the width of RdTfBeats
-                        v.RdAddr := r.RdAddr + shift_left(resize(r.RdTfBeats, v.RdAddr'length), UnusedAddrBits_c);
+                        -- .. A FIXED burst keeps the address
+                        if r.RdFixed = '0' then
+                            v.RdAddr := r.RdAddr + shift_left(resize(r.RdTfBeats, v.RdAddr'length), UnusedAddrBits_c);
+                        end if;
                         if r.RdTfIsLast = '1' then
                             v.ReadTfGenState := Idle_s;
                         else
@@ -560,6 +586,11 @@ begin
                         v.ArCmdSent     := '1';
                         v.ArCmdSize     := r.RdTfBeats;
                         v.ArCmdSizeMin1 := r.RdTfBeats - 1;
+                        if r.RdFixed = '1' then
+                            v.M_Axi_ArBurst := AxiBurst_Fixed_c;
+                        else
+                            v.M_Axi_ArBurst := AxiBurst_Incr_c;
+                        end if;
                     end if;
 
                 when Wait_s =>
@@ -644,6 +675,7 @@ begin
                     r.AwFsmRdy        <= '0';
                     r.AwCmdSent       <= '0';
                     r.M_Axi_AwValid   <= '0';
+                    r.M_Axi_AwBurst   <= AxiBurst_Incr_c;
                     r.WDataFifoRd     <= '0';
                     r.WDataEna        <= '0';
                     r.WrOpenTrans     <= 0;
@@ -664,6 +696,7 @@ begin
                     r.ArFsmRdy        <= '0';
                     r.ArCmdSent       <= '0';
                     r.M_Axi_ArValid   <= '0';
+                    r.M_Axi_ArBurst   <= AxiBurst_Incr_c;
                     r.ArFsm           <= Idle_s;
                     r.RdOpenTrans     <= (others => '0');
                     r.RdRespError     <= '0';
@@ -682,6 +715,7 @@ begin
     CmdWr_Ready   <= r.CmdWr_Ready;
     M_Axi_AwAddr  <= r.M_Axi_AwAddr;
     M_Axi_AwLen   <= r.M_Axi_AwLen;
+    M_Axi_AwBurst <= r.M_Axi_AwBurst;
     M_Axi_AwValid <= r.M_Axi_AwValid;
     M_Axi_WLast   <= r.M_Axi_WLast;
     Wr_Done       <= r.Wr_Done;
@@ -690,6 +724,7 @@ begin
     CmdRd_Ready   <= r.CmdRd_Ready;
     M_Axi_ArAddr  <= r.M_Axi_ArAddr;
     M_Axi_ArLen   <= r.M_Axi_ArLen;
+    M_Axi_ArBurst <= r.M_Axi_ArBurst;
     M_Axi_ArValid <= r.M_Axi_ArValid;
     Rd_Done       <= r.Rd_Done;
     Rd_Error      <= r.Rd_Error;
@@ -698,8 +733,6 @@ begin
     -- *** Constant Outputs ***
     M_Axi_AwSize  <= toUslv(log2(AxiDataWidth_g / 8), 3);
     M_Axi_ArSize  <= toUslv(log2(AxiDataWidth_g / 8), 3);
-    M_Axi_AwBurst <= AxiBurst_Incr_c;
-    M_Axi_ArBurst <= AxiBurst_Incr_c;
     M_Axi_AwCache <= "0011";              -- According AXI reference guide
     M_Axi_ArCache <= "0011";              -- According AXI reference guide
     M_Axi_AwProt  <= "000";               -- According AXI reference guide
