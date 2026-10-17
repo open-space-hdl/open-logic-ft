@@ -142,10 +142,10 @@ architecture rtl of olo_axi_master_full is
                                                 max(UserTransactionSizeBits_g - log2(AxiBytes_c) + 1, 2));
 
     -- *** Type ***
-    type WriteCmdFsm_t is (Idle_s, Apply_s);
+    type WriteCmdFsm_t is (Idle_s, Calc_s, Apply_s);
     type WriteWconvFsm_t is (Idle_s, Transfer_s);
     type WriteAlignFsm_t is (Idle_s, Transfer_s, Last_s);
-    type ReadCmdFsm_t is (Idle_s, Apply_s, WaitDataFsm_s);
+    type ReadCmdFsm_t is (Idle_s, Apply_s);
     type ReadDataFsm_t is (Idle_s, Transfer_s, Wait_s);
 
     -- *** Functions ***
@@ -177,8 +177,9 @@ architecture rtl of olo_axi_master_full is
         AxiWrCmd_LowLat : std_logic;
         AxiWrCmd_Fixed  : std_logic;
         AxiWrCmd_Vld    : std_logic;
+        WrWconvStart    : std_logic;
+        WrAlignStart    : std_logic;
         WrWconvFsm      : WriteWconvFsm_t;
-        WrStartTf       : std_logic;
         WrWordsDone     : unsigned(UserTransactionSizeBits_g - 1 downto 0);
         WrDataWordsCmd  : unsigned(UserTransactionSizeBits_g - 1 downto 0);
         WrDataWordsWc   : unsigned(UserTransactionSizeBits_g - 1 downto 0);
@@ -205,8 +206,8 @@ architecture rtl of olo_axi_master_full is
         AxiRdCmd_Size   : std_logic_vector(AxiSizeBits_c - 1 downto 0);
         RdFirstBe       : std_logic_vector(AxiBytes_c - 1 downto 0);
         RdLastBe        : std_logic_vector(AxiBytes_c - 1 downto 0);
+        RdStart         : std_logic;
         RdDataFsm       : ReadDataFsm_t;
-        RdStartTf       : std_logic;
         RdDataEna       : std_logic;
         RdDatFirstBe    : std_logic_vector(AxiBytes_c - 1 downto 0);
         RdDatLastBe     : std_logic_vector(AxiBytes_c - 1 downto 0);
@@ -276,6 +277,9 @@ begin
         variable RdDatBe_v      : std_logic_vector(AxiBytes_c - 1 downto 0);
         variable CmdWrAddr_v    : unsigned(AxiAddrWidth_g - 1 downto 0);
         variable CmdRdAddr_v    : unsigned(AxiAddrWidth_g - 1 downto 0);
+        variable StartWconv_v   : boolean;
+        variable StartAlign_v   : boolean;
+        variable StartRd_v      : boolean;
     begin
         -- *** Keep two process variables stable ***
         v := r;
@@ -284,7 +288,12 @@ begin
         if ImplWrite_g then
 
             -- *** Command FSM ***
-            v.WrStartTf    := '0';
+            -- A command sets a start flag for the width conversion FSM and one for the alignment FSM as soon as its
+            -- parameters are calculated. Each FSM takes the parameters of the command when it is done with the
+            -- previous one, so the commands follow each other without a gap. The AXI command is handed to
+            -- olo_axi_master_simple independently: in high-latency mode that entity takes the next command only
+            -- after the data of the current one, so the data of a command can reach it before the command. The
+            -- next command is accepted when both FSMs took the current one and its AXI command is handed over.
             v.AxiWrCmd_Vld := '0';
 
             case r.WrCmdFsm is
@@ -296,42 +305,42 @@ begin
                     else
                         CmdWrAddr_v := unsigned(CmdWr_Addr);
                     end if;
-                    v.CmdWr_Ready := '1';
-                    v.WrLastAddr  := CmdWrAddr_v + unsigned(CmdWr_Size) - 1;
-                    if (DataBytes_c = 1) or (unsigned(CmdWr_Size(log2(DataBytes_c) - 1 downto 0)) = 0) then
-                        v.WrDataWordsCmd := resize(unsigned(CmdWr_Size(CmdWr_Size'high downto log2(DataBytes_c))), UserTransactionSizeBits_g);
-                    else
-                        -- Resize before the increment: 2**(UserTransactionSizeBits_g-log2(DataBytes_c)) words need one bit more than the slice
-                        v.WrDataWordsCmd := resize(unsigned(CmdWr_Size(CmdWr_Size'high downto log2(DataBytes_c))), UserTransactionSizeBits_g) + 1;
-                    end if;
-                    v.AxiWrCmd_Addr   := std_logic_vector(alignedAddr(CmdWrAddr_v));
-                    v.WrShift         := byteOffset(CmdWrAddr_v);
-                    v.AxiWrCmd_LowLat := CmdWr_LowLat;
-                    v.AxiWrCmd_Fixed  := CmdWr_Fixed;
-                    -- Handshake: CmdWr_Ready is low in the first cycle after the reset
+                    -- Handshake: CmdWr_Ready is low in the first cycle after the reset and while a start is pending
                     if (r.CmdWr_Ready = '1') and (CmdWr_Valid = '1') then
-                        v.CmdWr_Ready := '0';
-                        v.WrCmdFsm    := Apply_s;
+                        v.WrLastAddr := CmdWrAddr_v + unsigned(CmdWr_Size) - 1;
+                        if (DataBytes_c = 1) or (unsigned(CmdWr_Size(log2(DataBytes_c) - 1 downto 0)) = 0) then
+                            v.WrDataWordsCmd := resize(unsigned(CmdWr_Size(CmdWr_Size'high downto log2(DataBytes_c))), UserTransactionSizeBits_g);
+                        else
+                            -- Resize before the increment: 2**(UserTransactionSizeBits_g-log2(DataBytes_c)) words need one bit more than the slice
+                            v.WrDataWordsCmd := resize(unsigned(CmdWr_Size(CmdWr_Size'high downto log2(DataBytes_c))), UserTransactionSizeBits_g) + 1;
+                        end if;
+                        v.AxiWrCmd_Addr   := std_logic_vector(alignedAddr(CmdWrAddr_v));
+                        v.WrShift         := byteOffset(CmdWrAddr_v);
+                        v.AxiWrCmd_LowLat := CmdWr_LowLat;
+                        v.AxiWrCmd_Fixed  := CmdWr_Fixed;
+                        v.WrCmdFsm        := Calc_s;
                     end if;
+
+                when Calc_s =>
+                    v.WrWconvStart  := '1';
+                    v.WrAlignStart  := '1';
+                    v.WrCmdFsm      := Apply_s;
+                    v.AxiWrCmd_Size := std_logic_vector(resize(shift_right(alignedAddr(r.WrLastAddr) - unsigned(r.AxiWrCmd_Addr), log2(AxiBytes_c)) + 1,
+                                                               AxiSizeBits_c));
+
+                    -- Calculate byte enables for last word
+                    for byte in 0 to AxiBytes_c - 1 loop
+                        if byteOffset(r.WrLastAddr) >= byte then
+                            v.WrLastBe(byte) := '1';
+                        else
+                            v.WrLastBe(byte) := '0';
+                        end if;
+                    end loop;
 
                 when Apply_s =>
-                    if (AxiWrCmd_Rdy = '1') and (r.WrWconvFsm = Idle_s) and (r.WrAlignFsm = Idle_s) then
-                        v.AxiWrCmd_Vld  := '1';
-                        v.WrStartTf     := '1';
-                        v.WrCmdFsm      := Idle_s;
-                        v.CmdWr_Ready   := '1';
-                        v.AxiWrCmd_Size := std_logic_vector(resize(shift_right(alignedAddr(r.WrLastAddr) - unsigned(r.AxiWrCmd_Addr), log2(AxiBytes_c)) + 1,
-                                                                   AxiSizeBits_c));
-
-                        -- Calculate byte enables for last word
-                        for byte in 0 to AxiBytes_c - 1 loop
-                            if byteOffset(r.WrLastAddr) >= byte then
-                                v.WrLastBe(byte) := '1';
-                            else
-                                v.WrLastBe(byte) := '0';
-                            end if;
-                        end loop;
-
+                    if AxiWrCmd_Rdy = '1' then
+                        v.AxiWrCmd_Vld := '1';
+                        v.WrCmdFsm     := Idle_s;
                     end if;
 
                 -- coverage off
@@ -340,18 +349,21 @@ begin
 
             end case;
 
-            -- *** With Conversion FSM ***
+            -- The parameters of a command stay until both data FSMs took them
+            if (r.WrCmdFsm = Idle_s) and (v.WrCmdFsm = Idle_s) and (r.WrWconvStart = '0') and (r.WrAlignStart = '0') then
+                v.CmdWr_Ready := '1';
+            else
+                v.CmdWr_Ready := '0';
+            end if;
+
+            -- *** Width Conversion FSM ***
             WrWconvEna   <= '0';
             WrWconv_Last <= '0';
+            StartWconv_v := false;
 
             case r.WrWconvFsm is
-                -- Latch values that change for the next command that may be interpreted while the current one is running
                 when Idle_s =>
-                    v.WrWordsDone   := to_unsigned(1, v.WrWordsDone'length);
-                    v.WrDataWordsWc := r.WrDataWordsCmd;
-                    if r.WrStartTf = '1' then
-                        v.WrWconvFsm := Transfer_s;
-                    end if;
+                    StartWconv_v := r.WrWconvStart = '1';
 
                 -- Execute transfer
                 when Transfer_s =>
@@ -363,6 +375,8 @@ begin
                         v.WrWordsDone := r.WrWordsDone + 1;
                         if r.WrWordsDone = r.WrDataWordsWc then
                             v.WrWconvFsm := Idle_s;
+                            -- The next command follows directly
+                            StartWconv_v := r.WrWconvStart = '1';
                         end if;
                     end if;
 
@@ -371,9 +385,18 @@ begin
                 -- coverage on
             end case;
 
+            -- Take the parameters of the next command
+            if StartWconv_v then
+                v.WrWconvStart  := '0';
+                v.WrWordsDone   := to_unsigned(1, v.WrWordsDone'length);
+                v.WrDataWordsWc := r.WrDataWordsCmd;
+                v.WrWconvFsm    := Transfer_s;
+            end if;
+
             -- *** Alignment FSM ***
             -- Initial values
-            WrDataEna <= '0';
+            WrDataEna    <= '0';
+            StartAlign_v := false;
 
             -- Word- to Byte-Enable conversion
             for i in 0 to AxiBytes_c - 1 loop
@@ -382,23 +405,15 @@ begin
 
             -- FSM
             case r.WrAlignFsm is
-                -- Latch values that change for the next command that may be interpreted while the current one is running
                 when Idle_s =>
-                    v.WrAlignReg     := (others => '0');
-                    v.WrAlignBe      := (others => '0');
-                    v.AxiWordCnt     := to_unsigned(1, v.AxiWordCnt'length);
-                    v.WrAlignLast    := '0';
-                    v.WrAlignShift   := r.WrShift;
-                    v.WrAlignCmdSize := r.AxiWrCmd_Size;
-                    v.WrAlignLastBe  := r.WrLastBe;
-                    v.WrAlignVld     := '0';
-                    if r.WrStartTf = '1' then
-                        v.WrAlignFsm := Transfer_s;
-                    end if;
+                    v.WrAlignVld := '0';
+                    StartAlign_v := r.WrAlignStart = '1';
 
                 -- Move data from the FIFO to AXI
                 when Transfer_s =>
-                    WrDataEna <= '1';
+                    -- No words from the width converter while the residual word is flushed: the words of the next
+                    -- command may already wait there
+                    WrDataEna <= not r.WrAlignLast;
                     if (AxiWrDat_Rdy = '1') and ((WrData_Vld = '1') or (r.WrAlignLast = '1')) then
                         -- Don't add new byte enables on last data flushing
                         if r.WrAlignLast = '1' then
@@ -412,13 +427,18 @@ begin
                         v.WrAlignBe(to_integer(r.WrAlignShift) + AxiBytes_c - 1 downto to_integer(r.WrAlignShift))            := WriteBe_v;
                         -- Flow control
                         v.WrAlignVld := '1';
-                        if r.AxiWordCnt = unsigned(r.WrAlignCmdSize) then
-                            v.WrAlignFsm                         := Last_s;
-                            v.WrAlignBe(AxiBytes_c - 1 downto 0) := v.WrAlignBe(AxiBytes_c - 1 downto 0) and r.WrAlignLastBe;
-                        end if;
                         v.AxiWordCnt := r.AxiWordCnt + 1;
                         -- Force last data out
                         v.WrAlignLast := WrData_Last;
+                        if r.AxiWordCnt = unsigned(r.WrAlignCmdSize) then
+                            v.WrAlignBe(AxiBytes_c - 1 downto 0) := v.WrAlignBe(AxiBytes_c - 1 downto 0) and r.WrAlignLastBe;
+                            if r.WrAlignStart = '1' then
+                                -- The next command follows directly: its first word enters with the next accepted beat
+                                StartAlign_v := true;
+                            else
+                                v.WrAlignFsm := Last_s;
+                            end if;
+                        end if;
                     elsif AxiWrDat_Rdy = '1' then
                         v.WrAlignVld := '0';
                     end if;
@@ -429,12 +449,27 @@ begin
                     if AxiWrDat_Rdy = '1' then
                         v.WrAlignVld := '0';
                         v.WrAlignFsm := Idle_s;
+                        StartAlign_v := r.WrAlignStart = '1';
                     end if;
 
                 -- coverage off
                 when others => v.WrAlignFsm := Idle_s; -- unreachable code, safe recovery
                 -- coverage on
             end case;
+
+            -- Take the parameters of the next command
+            if StartAlign_v then
+                -- The bytes above the last word of the previous command lie beyond its end
+                v.WrAlignReg(v.WrAlignReg'left downto AxiDataWidth_g) := (others => '0');
+                v.WrAlignBe(v.WrAlignBe'left downto AxiBytes_c)       := (others => '0');
+                v.WrAlignStart                                        := '0';
+                v.AxiWordCnt                                          := to_unsigned(1, v.AxiWordCnt'length);
+                v.WrAlignLast                                         := '0';
+                v.WrAlignShift                                        := r.WrShift;
+                v.WrAlignCmdSize                                      := r.AxiWrCmd_Size;
+                v.WrAlignLastBe                                       := r.WrLastBe;
+                v.WrAlignFsm                                          := Transfer_s;
+            end if;
 
         end if;
 
@@ -459,11 +494,12 @@ begin
             end loop;
 
             -- *** Command FSM ***
-            v.RdStartTf    := '0';
+            -- A command handed to olo_axi_master_simple sets the start flag of the data FSM, which takes the
+            -- parameters when the alignment register is free of the previous command. The next command is accepted
+            -- when the data FSM took it.
             v.AxiRdCmd_Vld := '0';
 
             case r.RdCmdFsm is
-                -- Move data from the FIFO to AXI
                 when Idle_s =>
                     -- A FIXED command starts at the AXI word of its address (the low address bits are ignored)
                     if CmdRd_Fixed = '1' then
@@ -471,26 +507,24 @@ begin
                     else
                         CmdRdAddr_v := unsigned(CmdRd_Addr);
                     end if;
-                    v.CmdRd_Ready     := '1';
-                    v.RdLastAddr      := CmdRdAddr_v + unsigned(CmdRd_Size) - 1;
-                    v.RdFirstAddrOffs := byteOffset(CmdRdAddr_v);
-                    v.AxiRdCmd_Addr   := std_logic_vector(alignedAddr(CmdRdAddr_v));
-                    v.AxiRdCmd_LowLat := CmdRd_LowLat;
-                    v.AxiRdCmd_Fixed  := CmdRd_Fixed;
-                    v.RdShift         := byteOffset(CmdRdAddr_v);
-                    v.RdLowIdx        := to_unsigned(AxiBytes_c, v.RdLowIdx'length) - byteOffset(CmdRdAddr_v);
-                    -- Handshake: CmdRd_Ready is low in the first cycle after the reset
+                    -- Handshake: CmdRd_Ready is low in the first cycle after the reset and while a start is pending
                     if (r.CmdRd_Ready = '1') and (CmdRd_Valid = '1') then
-                        v.CmdRd_Ready := '0';
-                        v.RdCmdFsm    := Apply_s;
+                        v.RdLastAddr      := CmdRdAddr_v + unsigned(CmdRd_Size) - 1;
+                        v.RdFirstAddrOffs := byteOffset(CmdRdAddr_v);
+                        v.AxiRdCmd_Addr   := std_logic_vector(alignedAddr(CmdRdAddr_v));
+                        v.AxiRdCmd_LowLat := CmdRd_LowLat;
+                        v.AxiRdCmd_Fixed  := CmdRd_Fixed;
+                        v.RdShift         := byteOffset(CmdRdAddr_v);
+                        v.RdLowIdx        := to_unsigned(AxiBytes_c, v.RdLowIdx'length) - byteOffset(CmdRdAddr_v);
+                        v.RdCmdFsm        := Apply_s;
                     end if;
 
                 -- Send AXI command when core is ready
                 when Apply_s =>
                     if AxiRdCmd_Rdy = '1' then
                         v.AxiRdCmd_Vld  := '1';
-                        v.RdCmdFsm      := WaitDataFsm_s;
-                        v.RdStartTf     := '1';
+                        v.RdStart       := '1';
+                        v.RdCmdFsm      := Idle_s;
                         v.AxiRdCmd_Size := std_logic_vector(resize(shift_right(alignedAddr(r.RdLastAddr) - unsigned(r.AxiRdCmd_Addr), log2(AxiBytes_c)) + 1,
                                                                    AxiSizeBits_c));
 
@@ -514,36 +548,26 @@ begin
 
                     end if;
 
-                -- Start data FSM before sending next command to avoid owerwriting data before it was latched
-                when WaitDataFsm_s =>
-                    v.RdStartTf := '1';
-                    if r.RdDataFsm = Idle_s then
-                        v.RdCmdFsm    := Idle_s;
-                        v.CmdRd_Ready := '1';
-                        v.RdStartTf   := '0';
-                    end if;
-
                 -- coverage off
                 when others => v.RdCmdFsm := Idle_s; -- unreachable code, safe recovery
                 -- coverage on
             end case;
 
+            -- The parameters of a command stay until the data FSM took them
+            if (r.RdCmdFsm = Idle_s) and (v.RdCmdFsm = Idle_s) and (r.RdStart = '0') then
+                v.CmdRd_Ready := '1';
+            else
+                v.CmdRd_Ready := '0';
+            end if;
+
             -- *** Data FSM ***
             v.RdDataEna := '0';
             RdDatBe_v   := (others => '1');
+            StartRd_v   := false;
 
             case r.RdDataFsm is
                 when Idle_s =>
-                    v.RdDatFirstBe  := r.RdFirstBe;
-                    v.RdDatLastBe   := r.RdLastBe;
-                    v.RdDataWords   := unsigned(r.AxiRdCmd_Size);
-                    v.RdCurrentWord := to_unsigned(1, v.RdCurrentWord'length);
-                    v.RdAlignShift  := r.RdShift;
-                    v.RdAlignLowIdx := r.RdLowIdx;
-                    if r.RdStartTf = '1' then
-                        v.RdDataFsm := Transfer_s;
-                        v.RdDataEna := '1';
-                    end if;
+                    StartRd_v := r.RdStart = '1';
 
                 when Transfer_s =>
                     v.RdDataEna := '1';
@@ -561,16 +585,33 @@ begin
                         end if;
                     end if;
 
-                -- Wait until reception of all data is done
+                -- Wait until the last bytes leave the alignment register (no AXI data is taken in this state, so the
+                -- register shifts whenever the output is ready)
                 when Wait_s =>
-                    if unsigned(r.RdAlignByteVld) = 0 then
+                    if (unsigned(r.RdAlignByteVld(r.RdAlignByteVld'high downto DataBytes_c)) = 0) and
+                       ((RdPl_Rdy = '1') or (unsigned(r.RdAlignByteVld(DataBytes_c - 1 downto 0)) = 0)) then
                         v.RdDataFsm := Idle_s;
+                        -- The next command follows directly
+                        StartRd_v := r.RdStart = '1';
                     end if;
 
                 -- coverage off
                 when others => v.RdDataFsm := Idle_s; -- unreachable code, safe recovery
                 -- coverage on
             end case;
+
+            -- Take the parameters of the next command
+            if StartRd_v then
+                v.RdStart       := '0';
+                v.RdDatFirstBe  := r.RdFirstBe;
+                v.RdDatLastBe   := r.RdLastBe;
+                v.RdDataWords   := unsigned(r.AxiRdCmd_Size);
+                v.RdCurrentWord := to_unsigned(1, v.RdCurrentWord'length);
+                v.RdAlignShift  := r.RdShift;
+                v.RdAlignLowIdx := r.RdLowIdx;
+                v.RdDataFsm     := Transfer_s;
+                v.RdDataEna     := '1';
+            end if;
 
             -- *** Data Alignment ***
             AxiRdDat_Rdy <= RdAlignReady_v;
@@ -616,7 +657,8 @@ begin
                     r.CmdWr_Ready  <= '0';
                     r.AxiWrCmd_Vld <= '0';
                     r.WrWconvFsm   <= Idle_s;
-                    r.WrStartTf    <= '0';
+                    r.WrWconvStart <= '0';
+                    r.WrAlignStart <= '0';
                     r.WrAlignFsm   <= Idle_s;
                     r.WrAlignVld   <= '0';
                 end if;
@@ -626,7 +668,7 @@ begin
                     r.CmdRd_Ready    <= '0';
                     r.AxiRdCmd_Vld   <= '0';
                     r.RdDataFsm      <= Idle_s;
-                    r.RdStartTf      <= '0';
+                    r.RdStart        <= '0';
                     r.RdDataEna      <= '0';
                     r.RdAlignByteVld <= (others => '0');
                 end if;

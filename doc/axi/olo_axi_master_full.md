@@ -38,6 +38,30 @@ Note that due to the alignment logic, every command takes at least four clock cy
 significant bursts are executed this does not matter but for cases where many very small (e.g. single-beat) transactions
 are required this entity is suboptimal.
 
+### Throughput
+
+Commands follow each other without gaps (see [Overview](#overview)): from 16 words per command, writes reach one beat
+per clock cycle. Shorter commands are bound by the limits of
+[olo_axi_master_simple](olo_axi_master_simple.md#throughput) (one command every 6 clock cycles) and lose one more
+clock cycle per command in this entity. For reads the entity keeps one command in flight beyond the one whose data it
+delivers, so the read latency is hidden only for long commands: at a read latency of 8 clock cycles about two clock
+cycles per command are lost from 16 words per command, shorter read commands wait for part of the latency. With
+_UserDataWidth_g_ < _AxiDataWidth_g_ the user side is the limit: one user word per clock cycle.
+
+Measured with 32-bit user and AXI data, _AxiMaxBeats_g_ = 16, back-to-back commands in high-latency mode, a slave that
+is always ready and a read latency of 8 clock cycles (beats per clock cycle, writes on the AXI data channel):
+
+| Command size              | Writes | Reads |
+| :------------------------ | -----: | ----: |
+| 8 bytes (2 words)         |   0.29 |  0.19 |
+| 16 bytes (4 words)        |   0.58 |  0.34 |
+| 32 bytes (8 words)        |   0.89 |  0.58 |
+| 64 bytes (16 words)       |   1.00 |  0.89 |
+| 64 bytes at offset 1      |   0.94 |  0.89 |
+| 1 KB                      |   1.00 |  0.99 |
+
+An unaligned command of 16 words spans 17 AXI words, hence 0.94 at offset 1.
+
 Most of the logic in this entity is related to unaligned and odd-sized transfers. So if you only require an AXI data
 width that is larger than the user interface data width, you may consider using
 [olo_axi_master_simple](olo_axi_master_simple.md) along with [olo_base_wconv_n2xn](../base/olo_base_wconv_n2xn.md)/
@@ -174,6 +198,12 @@ documentation). As a result, significant amounts of data cannot be provided befo
 determines the alignment required (which is done before the data goes into the FIFO). However, user designs shall not
 rely on no data being accepted before the command - due to timing optimization a few words of data may be accepted
 before the command.
+
+Commands follow each other without gaps: the data path takes the next command when the data of the current one are
+through, and the command is handed to [olo_axi_master_simple](olo_axi_master_simple.md) independently. In high-latency
+mode [olo_axi_master_simple](olo_axi_master_simple.md) takes the next command only after the data of the current one,
+so the data of a command can reach its data FIFO before the command. This relies on
+[olo_axi_master_simple](olo_axi_master_simple.md) accepting write data before, with or after the command.
 
 In cases where the amount of data to write - and hence the write command _WrCmd_xxx_ - is unknown until no more data
 arrives, above situation is a problem because data is only accepted after the command. In this situation, it is
