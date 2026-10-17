@@ -28,7 +28,10 @@ entity olo_base_wconv_n2m_be_tb is
     generic (
         runner_cfg      : string;
         InWidth_g       : positive := 16;
-        OutWidth_g      : positive := 24
+        OutWidth_g      : positive := 24;
+        -- PartialBeatNotLast drives an accepted partial beat that is not the last one (negative test, run outside the
+        -- regression: the check of the entity must stop the simulation)
+        BadBeat_g       : boolean  := false
     );
 end entity;
 
@@ -150,6 +153,19 @@ architecture sim of olo_base_wconv_n2m_be_tb is
     signal Out_Be    : std_logic_vector(OutWidth_g / 8 - 1 downto 0) := (others => '1');
     signal Out_Last  : std_logic                                     := '0';
 
+    -- Input from the verification component or from a manual source whose valid lags one delta cycle behind its
+    -- byte enables and last (the valid passes one more process)
+    signal ManualDrive : boolean                                      := false;
+    signal VcValid     : std_logic                                    := '0';
+    signal VcData      : std_logic_vector(InWidth_g - 1 downto 0)     := (others => '0');
+    signal VcBe        : std_logic_vector(InWidth_g / 8 - 1 downto 0) := (others => '1');
+    signal VcLast      : std_logic                                    := '0';
+    signal ManValid    : std_logic                                    := '0';
+    signal ManValidLag : std_logic                                    := '0';
+    signal ManData     : std_logic_vector(InWidth_g - 1 downto 0)     := (others => '0');
+    signal ManBe       : std_logic_vector(InWidth_g / 8 - 1 downto 0) := (others => '1');
+    signal ManLast     : std_logic                                    := '0';
+
 begin
 
     -----------------------------------------------------------------------------------------------
@@ -245,6 +261,62 @@ begin
                 pushElements(net, FullBeatElements_c*2+1, start => 5, validDelay => 10*ClkPeriod_c);
             end if;
 
+            -- In_Valid one delta cycle behind In_Be and In_Last: after the last beat of a packet the source drops valid
+            -- and last and keeps a partial In_Be; the lagging In_Valid is '1' for one more delta cycle. No beat is
+            -- accepted then, so the check of the byte enables must not fire.
+            if run("LaggingValid") then
+                ManualDrive <= true;
+                wait until rising_edge(Clk);
+
+                for rep in 0 to 2 loop
+                    -- Expected first: Out_Ready is '1' when the beat is accepted, as in the failing design
+                    expectElements(net, 1, start => rep);
+                    -- Packet of one element: the last beat with a partial In_Be
+                    ManData                             <= (others => '0');
+                    ManData(ElementSize_c - 1 downto 0) <= toUslv(rep + 1, ElementSize_c);
+                    ManBe                               <= (others => '0');
+                    ManBe(0)                            <= '1';
+                    ManLast                             <= '1';
+                    ManValid                            <= '1';
+                    wait until rising_edge(Clk) and (In_Ready = '1');
+                    -- The source drops valid and last and keeps the byte enables
+                    ManValid <= '0';
+                    ManLast  <= '0';
+                    wait for 5 * ClkPeriod_c;
+                    wait until rising_edge(Clk);
+                end loop;
+
+                ManualDrive <= false;
+            end if;
+
+            -- An accepted beat with a partial In_Be: as the last beat of a packet it is legal; with BadBeat_g it is not
+            -- the last one and the check of the entity must stop the simulation
+            if run("PartialBeatNotLast") then
+                if InElements_c > 1 then
+                    if not BadBeat_g then
+                        expectElements(net, 1, start => 6);
+                    end if;
+                    ManualDrive <= true;
+
+                    wait until rising_edge(Clk);
+                    ManData                             <= (others => '0');
+                    ManData(ElementSize_c - 1 downto 0) <= toUslv(7, ElementSize_c);
+                    ManBe                               <= (others => '0');
+                    ManBe(0)                            <= '1';
+                    ManLast                             <= '1' when not BadBeat_g else '0';
+                    ManValid                            <= '1';
+                    wait until rising_edge(Clk) and (In_Ready = '1');
+
+                    ManValid <= '0';
+                    ManLast  <= '0';
+                    if BadBeat_g then
+                        wait for 10 * ClkPeriod_c;
+                        error("The check of olo_base_wconv_n2m did not stop the simulation");
+                    end if;
+                    ManualDrive <= false;
+                end if;
+            end if;
+
             -- Rate Limit Output
             if run("RateLimit-Output") then
                 pushElements(net, FullBeatElements_c*2+1);
@@ -267,6 +339,20 @@ begin
     -- Clock
     -----------------------------------------------------------------------------------------------
     Clk <= not Clk after 0.5 * ClkPeriod_c;
+
+    -----------------------------------------------------------------------------------------------
+    -- Input Selection
+    -----------------------------------------------------------------------------------------------
+    -- The valid of the manual source passes one more process than its byte enables and last
+    p_lag : process (all) is
+    begin
+        ManValidLag <= ManValid;
+    end process;
+
+    In_Valid <= ManValidLag when ManualDrive else VcValid;
+    In_Data  <= ManData when ManualDrive else VcData;
+    In_Be    <= ManBe when ManualDrive else VcBe;
+    In_Last  <= ManLast when ManualDrive else VcLast;
 
     -----------------------------------------------------------------------------------------------
     -- DUT
@@ -301,11 +387,11 @@ begin
         )
         port map (
             AClk   => Clk,
-            TValid => In_Valid,
+            TValid => VcValid,
             TReady => In_Ready,
-            TData  => In_Data,
-            TStrb  => In_Be,
-            TLast  => In_Last
+            TData  => VcData,
+            TStrb  => VcBe,
+            TLast  => VcLast
         );
 
     vc_response : entity vunit_lib.axi_stream_slave
