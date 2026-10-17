@@ -150,6 +150,8 @@ See [Conventions](./Conventions.md) for a description about TDM (time-division-m
 | [olo_base_crc_append](./base/olo_base_crc_append.md) | Append CRC to AXI4-Stream packets |
 | [olo_base_crc_check](./base/olo_base_crc_check.md) | Check CRC of AXI4-Stream packets and drop invalid packets |
 | [olo_base_chunker](./base/olo_base_chunker.md) | Split AXI4-Stream packets into chunks of a fixed number of beats (no padding, end of the input packet marked) |
+| [olo_base_stream_join](./base/olo_base_stream_join.md) | Pack the valid bytes of an AXI4-Stream: input beats may be partial, the output carries every packet without gaps (e.g. the buffers of a DMA packet) |
+| [olo_base_stream_split](./base/olo_base_stream_split.md) | Cut AXI4-Stream packets into segments of a size in bytes given per segment, every segment starting in lane 0 (e.g. DMA buffers of any length) |
 | [olo_base_rs_encode](./base/olo_base_rs_encode.md) | Reed-Solomon encoder (any GF(2^m) code, interleaving, shortened blocks, dual basis, e.g. CCSDS 131.0-B-5) |
 | [olo_base_rs_decode](./base/olo_base_rs_decode.md) | Reed-Solomon decoder (corrects up to t symbol errors per codeword, status per codeword) |
 | [olo_base_sample_hold](./base/olo_base_sample_hold.md) | Sample and hold for bit-vectors. Holds the last sampled value until a new sample is taken. |
