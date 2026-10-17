@@ -180,7 +180,7 @@ def add_configs(olo_tb):
         named_config(tb, {'Direction_g': Direction})
     wconv_n2m_be_tb = 'olo_base_wconv_n2m_be_tb'
     tb = olo_tb.test_bench(wconv_n2m_be_tb)
-    for Ratio in [(16, 24), (24, 16), (32, 8), (8, 32)]:
+    for Ratio in [(16, 24), (24, 16), (32, 8), (8, 32), (32, 32)]:
         named_config(tb, {'InWidth_g': Ratio[0], 'OutWidth_g': Ratio[1]})
 
     ### olo_base_chunker ###
