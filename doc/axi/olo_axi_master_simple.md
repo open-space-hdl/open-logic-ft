@@ -63,6 +63,26 @@ before, after or together with the command.
 Note that this entity does require a minimum of four clock cycles for every write transaction. **It is not optimal for
 producing access patterns with many single-beat transactions.**
 
+### Throughput
+
+The transaction generator issues at most one AXI burst every 4 clock cycles and takes at most one user command every
+6 clock cycles, for writes and reads alike. Bursts of fewer than 4 beats and commands of fewer than 6 beats therefore
+cannot transfer one beat per clock cycle. The data FIFOs hide these limits only for sequences shorter than the FIFO.
+
+Measured with a 32-bit bus and a slave that is always ready (beats per clock cycle on the AXI data channel):
+
+| Commands                                | Writes | Reads |
+| :-------------------------------------- | -----: | ----: |
+| 2 beats each                            |   0.34 |  0.34 |
+| 4 beats each                            |   0.67 |  0.67 |
+| 1 KB each, _AxiMaxBeats_g_ = 2          |   0.50 |  0.50 |
+| 1 KB each, _AxiMaxBeats_g_ = 4          |   0.99 |  0.99 |
+| 64 bytes (16 beats) each                |   1.00 |  1.00 |
+
+Continuous transfers in high-latency mode also need _DataFifoDepth_g_ of at least 2 x _AxiMaxBeats_g_ (see
+[Generics](#generics)): the next burst can start only when the FIFO holds (writes) or has room for (reads) all of its
+beats.
+
 ## Generics
 
 | Name                      | Type     | Default | Description                                                  |
