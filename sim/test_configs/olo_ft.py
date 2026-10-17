@@ -153,10 +153,25 @@ def add_configs(olo_tb):
     for FeatureSet in ['FULL', 'DROP_SKIP_ONLY']:
         named_config(tb, {'FeatureSet_g': FeatureSet})
 
+    ### olo_ft_private_fifo_stream ###
+    tb = olo_tb.test_bench('olo_ft_private_fifo_stream_tb')
+    for Width in Widths:
+        for EccPipeline in [0, 1, 2]:
+            named_config(tb, {'Width_g': Width, 'EccPipeline_g': EccPipeline})
+    # Smallest depths with the full decoder pipeline, the other RAM behavior
+    for Depth in [2, 5]:
+        named_config(tb, {'Depth_g': Depth, 'EccPipeline_g': 2})
+    named_config(tb, {'RamBehavior_g': 'WBR', 'EccPipeline_g': 1})
+
     ### olo_ft_axi_master_simple ###
     tb = olo_tb.test_bench('olo_ft_axi_master_simple_tb')
     for Width in [16, 32]:
         named_config(tb, {'AxiDataWidth_g': Width})
+    for EccPipeline in [1, 2]:
+        named_config(tb, {'EccPipeline_g': EccPipeline})
+    # Internal FIFOs of one burst (the smallest depth) and of four bursts
+    for IntFifoDepth in [16, 64]:
+        named_config(tb, {'IntFifoDepth_g': IntFifoDepth})
     # Longer bursts (the 4 KB beat counter of the wrapped master is simulated in the axi area: the wrapped master's
     # FIFO RAM of 2 * AxiMaxBeats_g wide words exceeds the default GHDL stack limit for 512 and 1024 bits)
     named_config(tb, {'AxiDataWidth_g': 64, 'AxiMaxBeats_g': 64})
@@ -167,6 +182,11 @@ def add_configs(olo_tb):
     tb = olo_tb.test_bench('olo_ft_axi_master_full_tb')
     for Width in [16, 32]:
         named_config(tb, {'AxiDataWidth_g': Width})
+    for EccPipeline in [1, 2]:
+        named_config(tb, {'EccPipeline_g': EccPipeline})
+    # Internal FIFOs of one burst (the smallest depth) and of four bursts
+    for IntFifoDepth in [16, 64]:
+        named_config(tb, {'IntFifoDepth_g': IntFifoDepth})
     # Longer bursts (the 4 KB beat counter of the wrapped master is simulated in the axi area: the wrapped master's
     # FIFO RAM of 2 * AxiMaxBeats_g wide words exceeds the default GHDL stack limit for 512 and 1024 bits)
     named_config(tb, {'AxiDataWidth_g': 64, 'AxiMaxBeats_g': 64})

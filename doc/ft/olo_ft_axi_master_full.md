@@ -19,9 +19,10 @@ conversion**. The interface and behavior match [olo_axi_master_full](../axi/olo_
 commands (sizes in bytes), responses and the AXI interface pass through unchanged.
 
 The bulk write/read data buffering happens in SECDED-protected
-[olo_ft_fifo_sync](./olo_ft_fifo_sync.md) instances where the last flag (read side) is part of the ECC
-codeword. The wrapped master runs with small internal FIFOs that only cover the burst-issuance window and
-are implemented in flip-flops by default, coverable by vendor TMR.
+[olo_ft_private_fifo_stream](./olo_ft_private_fifo_stream.md) instances (the data path of
+[olo_ft_fifo_sync](./olo_ft_fifo_sync.md) with an optional decoder pipeline) where the last flag (read side)
+is part of the ECC codeword. The wrapped master runs with small internal FIFOs that only cover the
+burst-issuance window and are implemented in flip-flops by default, coverable by vendor TMR.
 
 ## Generics
 
@@ -30,9 +31,11 @@ Differences and additions:
 
 | Name              | Type    | Default     | Description                                                  |
 | :---------------- | :------ | ----------- | :----------------------------------------------------------- |
-| DataFifoDepth_g   | positive | 1024       | Number of entries of the **ECC-protected** write/read data buffers (in user-width words). The internal FIFOs of the wrapped master are sized separately (fixed at 2 x _AxiMaxBeats_g_ AXI-width words). |
+| DataFifoDepth_g   | positive | 1024       | Number of entries of the **ECC-protected** write/read data buffers (in user-width words). The internal FIFOs of the wrapped master are sized separately (_IntFifoDepth_g_ AXI-width words). |
 | RamStyle_g        | string  | "auto"      | RAM style of the ECC-protected data buffers. Any medium is acceptable here because the content is a full ECC codeword. |
 | IntFifoRamStyle_g | string  | "registers" | RAM style of the wrapped master's internal FIFOs. The default "registers" keeps them in flip-flops so vendor TMR covers them. Overriding this to a RAM primitive re-introduces non-ECC-protected RAM state and is discouraged for fault-tolerant designs (see [olo_ft_axi_master_simple - Fault-Tolerant Storage](./olo_ft_axi_master_simple.md#fault-tolerant-storage)). |
+| IntFifoDepth_g    | natural | 0           | Entries of the wrapped master's internal data FIFOs, in AXI-width words. 0 selects 2 x _AxiMaxBeats_g_. Other values must be at least _AxiMaxBeats_g_ (assertion). See [olo_ft_axi_master_simple - Throughput](./olo_ft_axi_master_simple.md#throughput) for the depth that hides the read latency of the memory. |
+| EccPipeline_g     | natural | 0           | Register stages in the ECC decoders of both data buffers (range _0..2_), with the meaning of [olo_ft_ram_sdp](./olo_ft_ram_sdp.md): 0 = combinational decode, 1 = one register at the decoder output, 2 = one register between the syndrome and the correction plus the output register. The stages add _EccPipeline_g_ clock cycles of latency to the read data and to the write data on their way to the wrapped master; the throughput stays one beat per clock cycle. See [Clock Frequency](./olo_ft_axi_master_simple.md#clock-frequency). |
 
 ## Interfaces
 
@@ -52,8 +55,9 @@ and _Rd_ErrorResp_), write-data, read-data and AXI interfaces are identical to
 
 ### Error Injection (optional)
 
-These ports drive the injection latches of the two internal [olo_ft_fifo_sync](./olo_ft_fifo_sync.md)
-instances. Leave them unconnected for normal operation; see
+These ports drive the injection latches of the two internal
+[olo_ft_private_fifo_stream](./olo_ft_private_fifo_stream.md) instances. Leave them unconnected for normal
+operation; see
 [Open Logic Fault-Tolerance Principles - Error Injection](./olo_ft_principles.md#error-injection).
 
 | Name              | In/Out | Length                                     | Default | Description                                                  |
@@ -80,7 +84,8 @@ handshake once the command arrives.
 
 See [olo_ft_axi_master_simple - Fault-Tolerant Storage](./olo_ft_axi_master_simple.md#fault-tolerant-storage)
 for the storage-protection discussion; it applies here unchanged (the internal data FIFO flip-flop cost is
-`2 x AxiMaxBeats_g x AxiDataWidth_g x 9/8` per implemented direction).
+`D x (AxiDataWidth_g + AxiDataWidth_g/8)` for the write FIFO and `D x (AxiDataWidth_g + 1)` for the read
+FIFO, with `D` = _IntFifoDepth_g_).
 
 ### ECC Overhead, Error Injection and Status Flags
 
