@@ -137,6 +137,9 @@ architecture sim of olo_axi_master_full_tb is
     signal Rd_Error     : std_logic;
     signal Rd_ErrorResp : std_logic_vector(1 downto 0);
 
+    -- User write beats taken since the reset
+    signal WrBeatCnt : natural := 0;
+
     -----------------------------------------------------------------------------------------------
     -- TB Defnitions
     -----------------------------------------------------------------------------------------------
@@ -351,7 +354,8 @@ architecture sim of olo_axi_master_full_tb is
         errCode    : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c;
         errBurst2  : integer                      := -1;
         errCode2   : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c;
-        fixed      : boolean                      := false) is
+        fixed      : boolean                      := false;
+        awDelay    : time                         := 0 ns) is -- AW ready delay of the first burst
         constant Addr_c     : unsigned         := cmdAxiAddr(address, fixed);
         constant AxiBeats_c : natural          := to_integer(axiWordAddr(Addr_c+bytes-1)-axiWordAddr(Addr_c))/AxiBytes_c+1;
         constant Data_c     : unsigned         := dataAsVectorAligned(Addr_c, startValue, bytes => bytes);
@@ -362,19 +366,25 @@ architecture sim of olo_axi_master_full_tb is
         variable Resp_v     : std_logic_vector(1 downto 0);
         variable To4k_v     : natural;
         variable BurstAdr_v : unsigned(AxiAddrWidth_g-1 downto 0);
+        variable AwDelay_v  : time;
     begin
 
         -- loop through bursts
         while Beat_v < AxiBeats_c loop
+            if Burst_v = 0 then
+                AwDelay_v := awDelay;
+            else
+                AwDelay_v := 0 ns;
+            end if;
             if fixed then
                 Beats_v := minimum(AxiBeats_c-Beat_v, FixedMaxBeats_c);
-                expect_aw (net, AxiSlave_c, Addr_c, len => Beats_v, burst => AxiBurst_Fixed_c);
+                expect_aw (net, AxiSlave_c, Addr_c, len => Beats_v, burst => AxiBurst_Fixed_c, delay => AwDelay_v);
             else
                 -- AXI bursts must not cross a 4 KB boundary
                 BurstAdr_v := axiWordAddr(Addr_c)+Beat_v*AxiBytes_c;
                 To4k_v     := (4096 - to_integer(BurstAdr_v(11 downto 0)))/AxiBytes_c;
                 Beats_v    := minimum(minimum(AxiBeats_c-Beat_v, AxiMaxBeats_g), To4k_v);
-                expect_aw (net, AxiSlave_c, BurstAdr_v, len => Beats_v, burst => AxiBurst_Incr_c);
+                expect_aw (net, AxiSlave_c, BurstAdr_v, len => Beats_v, burst => AxiBurst_Incr_c, delay => AwDelay_v);
             end if;
             expect_w_arbitrary (net, AxiSlave_c, Beats_v,
                                 resize(shift_right(Data_c, Beat_v*AxiDataWidth_g), Beats_v*AxiDataWidth_g),
@@ -632,6 +642,39 @@ begin
                     end loop;
 
                     -- Expect all responses
+                    for i in 0 to 2 loop
+                        expectWrResponse(RespSuccess);
+                    end loop;
+
+                end if;
+            end if;
+
+            -- *** The data of a command reach olo_axi_master_simple before the command ***
+            -- The slave holds back the AW of command A. olo_axi_master_simple takes command B but not C (its
+            -- transaction generator waits for the AW channel with B), while the data of A, B and C flow into its data
+            -- FIFO: all user data are taken before the AW handshake of A, and W carries them in command order.
+            if run("DataBeforeCommand") then
+                if ImplWrite_g and AxiMaxBeats_g >= 4 then
+                    DataBytes_v := 4*AxiBytes_c;
+                    UserBeats_v := DataBytes_v/UserBytes_c;
+
+                    for i in 0 to 2 loop
+                        Addr_v := resize(x"0A00"+i*DataBytes_v, AxiAddrWidth_g);
+                        Data_v := resize(x"10"+64*i, UserDataWidth_g);
+                        -- Slave
+                        if i = 0 then
+                            expectAxiWrite(net, Addr_v, Data_v, DataBytes_v, awDelay => 2 us);
+                        else
+                            expectAxiWrite(net, Addr_v, Data_v, DataBytes_v);
+                        end if;
+                        -- Master
+                        pushCommand(net, WrCmdMaster_c, Addr_v, DataBytes_v);
+                        pushWrData(net, Data_v, beats => UserBeats_v);
+                    end loop;
+
+                    wait until rising_edge(Clk) and AxiMs.aw_valid = '1' and AxiSm.aw_ready = '1';
+                    check_equal(WrBeatCnt, 3*UserBeats_v, "User data taken before the AW handshake of the first command");
+
                     for i in 0 to 2 loop
                         expectWrResponse(RespSuccess);
                     end loop;
@@ -974,6 +1017,112 @@ begin
                 end if;
             end if;
 
+            -- *** Back-to-back commands whose last AXI word only flushes the residual bytes ***
+            -- Two bytes from the last byte of an AXI word touch two AXI words but fill at most one user word: the
+            -- second AXI word carries the residual byte only. The data of the next command already wait when the
+            -- residual byte is flushed, and an aligned command follows the last one.
+            if run("BackToBackFlushWrites") then
+                if ImplWrite_g then
+
+                    for i in 0 to 3 loop
+                        if i < 3 then
+                            Addr_v      := resize(x"0A00"+i*4*AxiBytes_c+AxiBytes_c-1, AxiAddrWidth_g);
+                            DataBytes_v := 2;
+                        else
+                            Addr_v      := resize(x"0A00"+i*4*AxiBytes_c, AxiAddrWidth_g);
+                            DataBytes_v := 2*AxiBytes_c;
+                        end if;
+                        Data_v      := resize(x"40"+16*i, UserDataWidth_g);
+                        UserBeats_v := (DataBytes_v+UserBytes_c-1)/UserBytes_c;
+                        -- Slave
+                        expectAxiWrite(net, Addr_v, Data_v, DataBytes_v);
+                        -- Master
+                        pushCommand(net, WrCmdMaster_c, Addr_v, DataBytes_v);
+                        pushWrData(net, Data_v, beats => UserBeats_v);
+                    end loop;
+
+                    -- Blocking
+                    for i in 0 to 3 loop
+                        expectWrResponse(RespSuccess);
+                    end loop;
+
+                end if;
+            end if;
+
+            if run("BackToBackFlushReads") then
+                if ImplRead_g then
+
+                    for i in 0 to 3 loop
+                        if i < 3 then
+                            Addr_v      := resize(x"1A00"+i*4*AxiBytes_c+AxiBytes_c-1, AxiAddrWidth_g);
+                            DataBytes_v := 2;
+                        else
+                            Addr_v      := resize(x"1A00"+i*4*AxiBytes_c, AxiAddrWidth_g);
+                            DataBytes_v := 2*AxiBytes_c;
+                        end if;
+                        Data_v      := resize(x"50"+16*i, UserDataWidth_g);
+                        UserBeats_v := (DataBytes_v+UserBytes_c-1)/UserBytes_c;
+                        -- Slave
+                        pushAxiRead(net, Addr_v, Data_v, DataBytes_v);
+                        -- Master
+                        pushCommand(net, RdCmdMaster_c, Addr_v, DataBytes_v);
+                        expectRdData(net, Data_v, beats => UserBeats_v, lastBytes => DataBytes_v mod UserBytes_c);
+                    end loop;
+
+                    -- Blocking
+                    for i in 0 to 3 loop
+                        expectRdResponse(RespSuccess);
+                    end loop;
+
+                end if;
+            end if;
+
+            -- *** An error response inside a series of back-to-back commands ***
+            -- The responses keep the command order: only the middle command fails
+            if run("ErrorInSeriesWrites") then
+                if ImplWrite_g then
+
+                    for i in 0 to 2 loop
+                        Addr_v      := resize(x"0C00"+i*4*AxiBytes_c, AxiAddrWidth_g);
+                        Data_v      := resize(x"60"+16*i, UserDataWidth_g);
+                        DataBytes_v := 2*AxiBytes_c;
+                        UserBeats_v := (DataBytes_v+UserBytes_c-1)/UserBytes_c;
+                        -- Slave
+                        expectAxiWrite(net, Addr_v, Data_v, DataBytes_v, errBurst => choose(i = 1, 0, -1));
+                        -- Master
+                        pushCommand(net, WrCmdMaster_c, Addr_v, DataBytes_v);
+                        pushWrData(net, Data_v, beats => UserBeats_v);
+                    end loop;
+
+                    -- Blocking
+                    expectWrResponse(RespSuccess);
+                    expectWrResponse(RespError, AxiResp_SlvErr_c);
+                    expectWrResponse(RespSuccess);
+                end if;
+            end if;
+
+            if run("ErrorInSeriesReads") then
+                if ImplRead_g then
+
+                    for i in 0 to 2 loop
+                        Addr_v      := resize(x"1C00"+i*4*AxiBytes_c, AxiAddrWidth_g);
+                        Data_v      := resize(x"70"+16*i, UserDataWidth_g);
+                        DataBytes_v := 2*AxiBytes_c;
+                        UserBeats_v := (DataBytes_v+UserBytes_c-1)/UserBytes_c;
+                        -- Slave
+                        pushAxiRead(net, Addr_v, Data_v, DataBytes_v, errBeat => choose(i = 1, 0, -1));
+                        -- Master
+                        pushCommand(net, RdCmdMaster_c, Addr_v, DataBytes_v);
+                        expectRdData(net, Data_v, beats => UserBeats_v);
+                    end loop;
+
+                    -- Blocking
+                    expectRdResponse(RespSuccess);
+                    expectRdResponse(RespError, AxiResp_SlvErr_c);
+                    expectRdResponse(RespSuccess);
+                end if;
+            end if;
+
             -- Wait for idle
             wait_until_idle(net, as_sync(AxiSlave_c));
             wait_until_idle(net, as_sync(RdDataSlave_c));
@@ -1004,6 +1153,20 @@ begin
                 if ImplRead_g and Rd_Error /= '1' then
                     check_equal(Rd_ErrorResp, AxiResp_Okay_c, "Rd_ErrorResp outside Rd_Error");
                 end if;
+            end if;
+        end if;
+    end process;
+
+    -----------------------------------------------------------------------------------------------
+    -- User write beats taken since the reset
+    -----------------------------------------------------------------------------------------------
+    p_wrbeats : process (Clk) is
+    begin
+        if rising_edge(Clk) then
+            if Rst = '1' then
+                WrBeatCnt <= 0;
+            elsif Wr_Valid = '1' and Wr_Ready = '1' then
+                WrBeatCnt <= WrBeatCnt + 1;
             end if;
         end if;
     end process;

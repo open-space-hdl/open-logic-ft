@@ -76,6 +76,25 @@ def add_configs(olo_tb):
         named_config(tb, {'ImplRead_g': True, 'ImplWrite_g': True, 'AxiDataWidth_g': DataWidth, 'UserDataWidth_g': 64,
                           'AxiMaxBeats_g': MaxBeats, 'UserTransactionSizeBits_g': 16})
 
+    ### olo_axi_master_full (random back-to-back commands) ###
+    axi_master_full_random_tb = 'olo_axi_master_full_random_tb'
+    tb = olo_tb.test_bench(axi_master_full_random_tb)
+    #Throughput bounds in per mille of the expected rate (write, read). Where the chaining of the commands sets
+    #the rate, each bound lies between the measured rate and the rate with one lost clock cycle per command.
+    #Throughput runs without stalls in any case, so it runs only in the configurations without stalls.
+    seed = 1
+    for StallPercent in [0, 30]:
+        for DataWidth, UserWidth, MaxBeats, TpWr, TpRd in [(32, 32, 16, 970, 850), (32, 8, 4, 990, 925),
+                                                           (64, 16, 7, 990, 925), (32, 16, 3, 985, 905),
+                                                           (8, 8, 4, 850, 715), (128, 32, 16, 990, 925),
+                                                           (16, 16, 1, 850, 850), (64, 64, 2, 850, 850)]:
+            generics = {'AxiDataWidth_g': DataWidth, 'UserDataWidth_g': UserWidth, 'AxiMaxBeats_g': MaxBeats,
+                        'StallPercent_g': StallPercent, 'Seed_g': seed, 'TpWrPermille_g': TpWr, 'TpRdPermille_g': TpRd}
+            named_config(tb.test('RandomCommands'), generics)
+            if StallPercent == 0:
+                named_config(tb.test('Throughput'), generics)
+            seed += 1
+
     ### olo_axi_pl_stage ###
     axi_pl_stage_tb = 'olo_axi_pl_stage_tb'
     tb = olo_tb.test_bench(axi_pl_stage_tb)
