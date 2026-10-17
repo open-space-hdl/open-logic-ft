@@ -157,7 +157,8 @@ package olo_test_axi_slave_pkg is
         aw_ready_delay : time    := 0 ns;
         w_ready_delay  : time    := 0 ns;
         b_valid_delay  : time    := 0 ns;
-        beat_delay     : time    := 0 ns);
+        beat_delay     : time    := 0 ns;
+        burst          : burst_t := AxiBurst_Incr_c);
 
     -- Burst read (aligned)
     procedure push_burst_read_aligned (
@@ -169,7 +170,8 @@ package olo_test_axi_slave_pkg is
         beats          : natural;
         ar_ready_delay : time    := 0 ns;
         r_valid_delay  : time    := 0 ns;
-        beat_delay     : time    := 0 ns);
+        beat_delay     : time    := 0 ns;
+        burst          : burst_t := AxiBurst_Incr_c);
 
     -- Constructor
     impure function new_olo_test_axi_slave (
@@ -471,9 +473,10 @@ package body olo_test_axi_slave_pkg is
         aw_ready_delay : time    := 0 ns;
         w_ready_delay  : time    := 0 ns;
         b_valid_delay  : time    := 0 ns;
-        beat_delay     : time    := 0 ns) is
+        beat_delay     : time    := 0 ns;
+        burst          : burst_t := AxiBurst_Incr_c) is
     begin
-        expect_aw(net, axi_slave, addr, len => beats, delay => aw_ready_delay);
+        expect_aw(net, axi_slave, addr, len => beats, burst => burst, delay => aw_ready_delay);
         expect_w(net, axi_slave, data_start, data_increment, beats, delay => w_ready_delay, beat_delay => beat_delay);
         push_b(net, axi_slave, resp => AxiResp_Okay_c, delay => b_valid_delay);
     end procedure;
@@ -488,9 +491,10 @@ package body olo_test_axi_slave_pkg is
         beats          : natural;
         ar_ready_delay : time    := 0 ns;
         r_valid_delay  : time    := 0 ns;
-        beat_delay     : time    := 0 ns) is
+        beat_delay     : time    := 0 ns;
+        burst          : burst_t := AxiBurst_Incr_c) is
     begin
-        expect_ar(net, axi_slave, addr, len => beats, delay => ar_ready_delay);
+        expect_ar(net, axi_slave, addr, len => beats, burst => burst, delay => ar_ready_delay);
         push_r(net, axi_slave, data_start, data_increment, beats, error_code => AxiResp_Okay_c, delay => r_valid_delay, beat_delay => beat_delay);
     end procedure;
 

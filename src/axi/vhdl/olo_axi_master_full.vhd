@@ -60,12 +60,14 @@ entity olo_axi_master_full is
         CmdWr_Addr      : in    std_logic_vector(AxiAddrWidth_g - 1 downto 0)            := (others => '0');
         CmdWr_Size      : in    std_logic_vector(UserTransactionSizeBits_g - 1 downto 0) := (others => '0');
         CmdWr_LowLat    : in    std_logic                                                := '0';
+        CmdWr_Fixed     : in    std_logic                                                := '0';
         CmdWr_Valid     : in    std_logic                                                := '0';
         CmdWr_Ready     : out   std_logic;
         -- User Command Interface
         CmdRd_Addr      : in    std_logic_vector(AxiAddrWidth_g - 1 downto 0)            := (others => '0');
         CmdRd_Size      : in    std_logic_vector(UserTransactionSizeBits_g - 1 downto 0) := (others => '0');
         CmdRd_LowLat    : in    std_logic                                                := '0';
+        CmdRd_Fixed     : in    std_logic                                                := '0';
         CmdRd_Valid     : in    std_logic                                                := '0';
         CmdRd_Ready     : out   std_logic;
         -- Write Data
@@ -173,6 +175,7 @@ architecture rtl of olo_axi_master_full is
         AxiWrCmd_Size   : std_logic_vector(AxiSizeBits_c - 1 downto 0);
         WrAlignCmdSize  : std_logic_vector(AxiSizeBits_c - 1 downto 0);
         AxiWrCmd_LowLat : std_logic;
+        AxiWrCmd_Fixed  : std_logic;
         AxiWrCmd_Vld    : std_logic;
         WrWconvFsm      : WriteWconvFsm_t;
         WrStartTf       : std_logic;
@@ -197,6 +200,7 @@ architecture rtl of olo_axi_master_full is
         CmdRd_Ready     : std_logic;
         AxiRdCmd_Addr   : std_logic_vector(AxiAddrWidth_g - 1 downto 0);
         AxiRdCmd_LowLat : std_logic;
+        AxiRdCmd_Fixed  : std_logic;
         AxiRdCmd_Vld    : std_logic;
         AxiRdCmd_Size   : std_logic_vector(AxiSizeBits_c - 1 downto 0);
         RdFirstBe       : std_logic_vector(AxiBytes_c - 1 downto 0);
@@ -270,6 +274,8 @@ begin
         variable RdAlignReady_v : std_logic;
         variable RdLowIdxInt_v  : integer range 0 to AxiBytes_c;
         variable RdDatBe_v      : std_logic_vector(AxiBytes_c - 1 downto 0);
+        variable CmdWrAddr_v    : unsigned(AxiAddrWidth_g - 1 downto 0);
+        variable CmdRdAddr_v    : unsigned(AxiAddrWidth_g - 1 downto 0);
     begin
         -- *** Keep two process variables stable ***
         v := r;
@@ -284,17 +290,24 @@ begin
             case r.WrCmdFsm is
 
                 when Idle_s =>
+                    -- A FIXED command starts at the AXI word of its address (the low address bits are ignored)
+                    if CmdWr_Fixed = '1' then
+                        CmdWrAddr_v := alignedAddr(unsigned(CmdWr_Addr));
+                    else
+                        CmdWrAddr_v := unsigned(CmdWr_Addr);
+                    end if;
                     v.CmdWr_Ready := '1';
-                    v.WrLastAddr  := unsigned(CmdWr_Addr) + unsigned(CmdWr_Size) - 1;
+                    v.WrLastAddr  := CmdWrAddr_v + unsigned(CmdWr_Size) - 1;
                     if (DataBytes_c = 1) or (unsigned(CmdWr_Size(log2(DataBytes_c) - 1 downto 0)) = 0) then
                         v.WrDataWordsCmd := resize(unsigned(CmdWr_Size(CmdWr_Size'high downto log2(DataBytes_c))), UserTransactionSizeBits_g);
                     else
                         -- Resize before the increment: 2**(UserTransactionSizeBits_g-log2(DataBytes_c)) words need one bit more than the slice
                         v.WrDataWordsCmd := resize(unsigned(CmdWr_Size(CmdWr_Size'high downto log2(DataBytes_c))), UserTransactionSizeBits_g) + 1;
                     end if;
-                    v.AxiWrCmd_Addr   := std_logic_vector(alignedAddr(unsigned(CmdWr_Addr)));
-                    v.WrShift         := byteOffset(unsigned(CmdWr_Addr));
+                    v.AxiWrCmd_Addr   := std_logic_vector(alignedAddr(CmdWrAddr_v));
+                    v.WrShift         := byteOffset(CmdWrAddr_v);
                     v.AxiWrCmd_LowLat := CmdWr_LowLat;
+                    v.AxiWrCmd_Fixed  := CmdWr_Fixed;
                     if CmdWr_Valid = '1' then
                         v.CmdWr_Ready := '0';
                         v.WrCmdFsm    := Apply_s;
@@ -451,13 +464,20 @@ begin
             case r.RdCmdFsm is
                 -- Move data from the FIFO to AXI
                 when Idle_s =>
+                    -- A FIXED command starts at the AXI word of its address (the low address bits are ignored)
+                    if CmdRd_Fixed = '1' then
+                        CmdRdAddr_v := alignedAddr(unsigned(CmdRd_Addr));
+                    else
+                        CmdRdAddr_v := unsigned(CmdRd_Addr);
+                    end if;
                     v.CmdRd_Ready     := '1';
-                    v.RdLastAddr      := unsigned(CmdRd_Addr) + unsigned(CmdRd_Size) - 1;
-                    v.RdFirstAddrOffs := byteOffset(unsigned(CmdRd_Addr));
-                    v.AxiRdCmd_Addr   := std_logic_vector(alignedAddr(unsigned(CmdRd_Addr)));
+                    v.RdLastAddr      := CmdRdAddr_v + unsigned(CmdRd_Size) - 1;
+                    v.RdFirstAddrOffs := byteOffset(CmdRdAddr_v);
+                    v.AxiRdCmd_Addr   := std_logic_vector(alignedAddr(CmdRdAddr_v));
                     v.AxiRdCmd_LowLat := CmdRd_LowLat;
-                    v.RdShift         := byteOffset(unsigned(CmdRd_Addr));
-                    v.RdLowIdx        := to_unsigned(AxiBytes_c, v.RdLowIdx'length) - byteOffset(unsigned(CmdRd_Addr));
+                    v.AxiRdCmd_Fixed  := CmdRd_Fixed;
+                    v.RdShift         := byteOffset(CmdRdAddr_v);
+                    v.RdLowIdx        := to_unsigned(AxiBytes_c, v.RdLowIdx'length) - byteOffset(CmdRdAddr_v);
                     if CmdRd_Valid = '1' then
                         v.CmdRd_Ready := '0';
                         v.RdCmdFsm    := Apply_s;
@@ -644,12 +664,14 @@ begin
             CmdWr_Addr      => r.AxiWrCmd_Addr,
             CmdWr_Size      => r.AxiWrCmd_Size,
             CmdWr_LowLat    => r.AxiWrCmd_LowLat,
+            CmdWr_Fixed     => r.AxiWrCmd_Fixed,
             CmdWr_Valid     => r.AxiWrCmd_Vld,
             CmdWr_Ready     => AxiWrCmd_Rdy,
             -- User Command Interface
             CmdRd_Addr      => r.AxiRdCmd_Addr,
             CmdRd_Size      => r.AxiRdCmd_Size,
             CmdRd_LowLat    => r.AxiRdCmd_LowLat,
+            CmdRd_Fixed     => r.AxiRdCmd_Fixed,
             CmdRd_Valid     => r.AxiRdCmd_Vld,
             CmdRd_Ready     => AxiRdCmd_Rdy,
             -- Write Data

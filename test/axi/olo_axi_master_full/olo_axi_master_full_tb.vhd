@@ -78,6 +78,7 @@ architecture sim of olo_axi_master_full_tb is
     subtype CmdAddrRange_c is natural range AxiAddrWidth_g-1 downto 0;
     subtype CmdSizeRange_c is natural range UserTransactionSizeBits_g+CmdAddrRange_c'high downto CmdAddrRange_c'high+1;
     constant CmdLowLat_c : natural := CmdSizeRange_c'high+1;
+    constant CmdFixed_c  : natural := CmdLowLat_c+1;
 
     constant UserBytes_c  : natural := UserDataWidth_g/8;
     constant AxiBytes_c   : natural := AxiDataWidth_g/8;
@@ -85,6 +86,11 @@ architecture sim of olo_axi_master_full_tb is
     constant LoopStep_c   : natural := maximum(1, AxiBytes_c/8);
     -- Commands of SplitBeats_c AXI beats are split into at least two bursts (at AxiMaxBeats_g or at 4 KB)
     constant SplitBeats_c : natural := minimum(AxiMaxBeats_g, 4096/AxiBytes_c)+2;
+
+    -- FIXED bursts (CmdWr_Fixed, CmdRd_Fixed): at most 16 beats (AXI4); command sizes 1, B, B + 1 and 100 x B + 3 bytes
+    constant FixedMaxBeats_c : natural                := minimum(AxiMaxBeats_g, 16);
+    constant FixedLong_c     : natural                := minimum(100*AxiBytes_c+3, 2**UserTransactionSizeBits_g-1);
+    constant FixedSizes_c    : integer_vector(0 to 3) := (1, AxiBytes_c, AxiBytes_c+1, FixedLong_c);
 
     -----------------------------------------------------------------------------------------------
     -- TB Defnitions
@@ -104,12 +110,14 @@ architecture sim of olo_axi_master_full_tb is
     signal CmdWr_Addr   : std_logic_vector(AxiAddrWidth_g - 1 downto 0)            := (others => '0');
     signal CmdWr_Size   : std_logic_vector(UserTransactionSizeBits_g - 1 downto 0) := (others => '0');
     signal CmdWr_LowLat : std_logic                                                := '0';
+    signal CmdWr_Fixed  : std_logic                                                := '0';
     signal CmdWr_Valid  : std_logic                                                := '0';
     signal CmdWr_Ready  : std_logic;
     -- Read Command Interface
     signal CmdRd_Addr   : std_logic_vector(AxiAddrWidth_g - 1 downto 0)            := (others => '0');
     signal CmdRd_Size   : std_logic_vector(UserTransactionSizeBits_g - 1 downto 0) := (others => '0');
     signal CmdRd_LowLat : std_logic                                                := '0';
+    signal CmdRd_Fixed  : std_logic                                                := '0';
     signal CmdRd_Valid  : std_logic                                                := '0';
     signal CmdRd_Ready  : std_logic;
     -- Write Data
@@ -144,11 +152,11 @@ architecture sim of olo_axi_master_full_tb is
         stall_config => new_stall_config(0.0, 0, 0)
     );
     constant WrCmdMaster_c  : axi_stream_master_t  := new_axi_stream_master (
-        data_length => AxiAddrWidth_g+UserTransactionSizeBits_g+1,
+        data_length => AxiAddrWidth_g+UserTransactionSizeBits_g+2,
         stall_config => new_stall_config(0.0, 0, 0)
     );
     constant RdCmdMaster_c  : axi_stream_master_t  := new_axi_stream_master (
-        data_length => AxiAddrWidth_g+UserTransactionSizeBits_g+1,
+        data_length => AxiAddrWidth_g+UserTransactionSizeBits_g+2,
         stall_config => new_stall_config(0.0, 0, 0)
     );
     constant WrDataMaster_c : axi_stream_master_t  := new_axi_stream_master (
@@ -162,12 +170,14 @@ architecture sim of olo_axi_master_full_tb is
         CmdMaster  : axi_stream_master_t;
         CmdAddr    : unsigned;
         CmdSize    : integer;
-        CmdLowLat  : std_logic := '0') is
-        variable TData_v : std_logic_vector(CmdLowLat_c downto 0);
+        CmdLowLat  : std_logic := '0';
+        CmdFixed   : std_logic := '0') is
+        variable TData_v : std_logic_vector(CmdFixed_c downto 0);
     begin
         TData_v(CmdAddrRange_c) := std_logic_vector(resize(CmdAddr, AxiAddrWidth_g));
         TData_v(CmdSizeRange_c) := toUslv(CmdSize, UserTransactionSizeBits_g);
         TData_v(CmdLowLat_c)    := CmdLowLat;
+        TData_v(CmdFixed_c)     := CmdFixed;
         push_axi_stream(net, CmdMaster, TData_v);
     end procedure;
 
@@ -190,23 +200,31 @@ architecture sim of olo_axi_master_full_tb is
     end procedure;
 
     -- Check REad DAta
+    -- lastBytes > 0: the last word holds lastBytes bytes of the command, its other bytes are the zero padding of the
+    -- AXI slave (dataAsVectorAligned)
     procedure expectRdData (
         signal net : inout network_t;
         startValue : unsigned;
         increment  : natural := 1;
-        beats      : natural := 1) is
-        variable Data_v : unsigned(UserDataWidth_g-1 downto 0);
-        variable Last_v : std_logic := '0';
+        beats      : natural := 1;
+        lastBytes  : natural := 0) is
+        variable Data_v  : unsigned(UserDataWidth_g-1 downto 0);
+        variable Check_v : unsigned(UserDataWidth_g-1 downto 0);
+        variable Last_v  : std_logic := '0';
     begin
         Data_v := resize(startValue, UserDataWidth_g);
 
         -- Loop through beats
         for i in 0 to beats-1 loop
+            Check_v := Data_v;
             -- Last is set on the last beat
             if i = beats-1 then
                 Last_v := '1';
+                if lastBytes > 0 then
+                    Check_v(Check_v'high downto lastBytes*8) := (others => '0');
+                end if;
             end if;
-            check_axi_stream(net, RdDataSlave_c, std_logic_vector(Data_v), blocking => false, tlast => Last_v, msg => "RdData " & integer'image(i));
+            check_axi_stream(net, RdDataSlave_c, std_logic_vector(Check_v), blocking => false, tlast => Last_v, msg => "RdData " & integer'image(i));
             Data_v := Data_v + increment;
         end loop;
 
@@ -252,6 +270,17 @@ architecture sim of olo_axi_master_full_tb is
     begin
         Address_v(log2(AxiBytes_c)-1 downto 0) := (others => '0');
         return Address_v;
+    end function;
+
+    -- Start address of the AXI data of a command: a FIXED command starts at the AXI word of its address
+    function cmdAxiAddr (
+        address : unsigned;
+        fixed   : boolean) return unsigned is
+    begin
+        if fixed then
+            return axiWordAddr(address);
+        end if;
+        return resize(address, AxiAddrWidth_g);
     end function;
 
     -- Convert counter data to a continuous vector (as required by the olo_axi_slave_vc)
@@ -310,6 +339,7 @@ architecture sim of olo_axi_master_full_tb is
 
     -- Expect the AXI transactions of a write, split into bursts of at most AxiMaxBeats_g beats within 4 KB
     -- The B responses of the bursts errBurst and errBurst2 (0 = first, -1 = none) are errCode and errCode2.
+    -- fixed: FIXED bursts of at most FixedMaxBeats_c beats at the AXI word of address, not split at 4 KB
     procedure expectAxiWrite (
         signal net : inout network_t;
         address    : unsigned;
@@ -320,10 +350,12 @@ architecture sim of olo_axi_master_full_tb is
         errBurst   : integer                      := -1;
         errCode    : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c;
         errBurst2  : integer                      := -1;
-        errCode2   : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c) is
-        constant AxiBeats_c : natural          := to_integer(axiWordAddr(address+bytes-1)-axiWordAddr(address))/AxiBytes_c+1;
-        constant Data_c     : unsigned         := dataAsVectorAligned(address, startValue, bytes => bytes);
-        constant Strb_c     : std_logic_vector := strbAsVectorAligned(address, bytes);
+        errCode2   : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c;
+        fixed      : boolean                      := false) is
+        constant Addr_c     : unsigned         := cmdAxiAddr(address, fixed);
+        constant AxiBeats_c : natural          := to_integer(axiWordAddr(Addr_c+bytes-1)-axiWordAddr(Addr_c))/AxiBytes_c+1;
+        constant Data_c     : unsigned         := dataAsVectorAligned(Addr_c, startValue, bytes => bytes);
+        constant Strb_c     : std_logic_vector := strbAsVectorAligned(Addr_c, bytes);
         variable Beat_v     : natural          := 0;
         variable Beats_v    : natural;
         variable Burst_v    : natural          := 0;
@@ -334,16 +366,21 @@ architecture sim of olo_axi_master_full_tb is
 
         -- loop through bursts
         while Beat_v < AxiBeats_c loop
-            -- AXI bursts must not cross a 4 KB boundary
-            BurstAdr_v := axiWordAddr(address)+Beat_v*AxiBytes_c;
-            To4k_v     := (4096 - to_integer(BurstAdr_v(11 downto 0)))/AxiBytes_c;
-            Beats_v    := minimum(minimum(AxiBeats_c-Beat_v, AxiMaxBeats_g), To4k_v);
-            expect_aw (net, AxiSlave_c, axiWordAddr(address)+Beat_v*AxiBytes_c, len => Beats_v, burst => AxiBurst_Incr_c);
+            if fixed then
+                Beats_v := minimum(AxiBeats_c-Beat_v, FixedMaxBeats_c);
+                expect_aw (net, AxiSlave_c, Addr_c, len => Beats_v, burst => AxiBurst_Fixed_c);
+            else
+                -- AXI bursts must not cross a 4 KB boundary
+                BurstAdr_v := axiWordAddr(Addr_c)+Beat_v*AxiBytes_c;
+                To4k_v     := (4096 - to_integer(BurstAdr_v(11 downto 0)))/AxiBytes_c;
+                Beats_v    := minimum(minimum(AxiBeats_c-Beat_v, AxiMaxBeats_g), To4k_v);
+                expect_aw (net, AxiSlave_c, BurstAdr_v, len => Beats_v, burst => AxiBurst_Incr_c);
+            end if;
             expect_w_arbitrary (net, AxiSlave_c, Beats_v,
                                 resize(shift_right(Data_c, Beat_v*AxiDataWidth_g), Beats_v*AxiDataWidth_g),
                                 std_logic_vector(resize(shift_right(unsigned(Strb_c), Beat_v*AxiBytes_c), Beats_v*AxiBytes_c)),
                                 delay => delay, beat_delay => beatDelay);
-            Resp_v     := AxiResp_Okay_c;
+            Resp_v := AxiResp_Okay_c;
             if Burst_v = errBurst then
                 Resp_v := errCode;
             elsif Burst_v = errBurst2 then
@@ -359,6 +396,7 @@ architecture sim of olo_axi_master_full_tb is
     -- Push the AXI transactions of a read, split into bursts of at most AxiMaxBeats_g beats within 4 KB
     -- The AXI beats errBeat and errBeat2 of the transfer (0 = first, -1 = none, in different bursts) respond with
     -- errCode and errCode2.
+    -- fixed: FIXED bursts of at most FixedMaxBeats_c beats at the AXI word of address, not split at 4 KB
     procedure pushAxiRead (
         signal net : inout network_t;
         address    : unsigned;
@@ -367,9 +405,11 @@ architecture sim of olo_axi_master_full_tb is
         errBeat    : integer                      := -1;
         errCode    : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c;
         errBeat2   : integer                      := -1;
-        errCode2   : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c) is
-        constant AxiBeats_c : natural  := to_integer(axiWordAddr(address+bytes-1)-axiWordAddr(address))/AxiBytes_c+1;
-        constant Data_c     : unsigned := dataAsVectorAligned(address, startValue, bytes => bytes);
+        errCode2   : std_logic_vector(1 downto 0) := AxiResp_SlvErr_c;
+        fixed      : boolean                      := false) is
+        constant Addr_c     : unsigned := cmdAxiAddr(address, fixed);
+        constant AxiBeats_c : natural  := to_integer(axiWordAddr(Addr_c+bytes-1)-axiWordAddr(Addr_c))/AxiBytes_c+1;
+        constant Data_c     : unsigned := dataAsVectorAligned(Addr_c, startValue, bytes => bytes);
         variable Beat_v     : natural  := 0;
         variable Beats_v    : natural;
         variable Code_v     : std_logic_vector(1 downto 0);
@@ -380,12 +420,17 @@ architecture sim of olo_axi_master_full_tb is
 
         -- loop through bursts
         while Beat_v < AxiBeats_c loop
-            -- AXI bursts must not cross a 4 KB boundary
-            BurstAdr_v := axiWordAddr(address)+Beat_v*AxiBytes_c;
-            To4k_v     := (4096 - to_integer(BurstAdr_v(11 downto 0)))/AxiBytes_c;
-            Beats_v    := minimum(minimum(AxiBeats_c-Beat_v, AxiMaxBeats_g), To4k_v);
-            Code_v     := AxiResp_Okay_c;
-            ErrBeat_v  := -1;
+            if fixed then
+                BurstAdr_v := Addr_c;
+                Beats_v    := minimum(AxiBeats_c-Beat_v, FixedMaxBeats_c);
+            else
+                -- AXI bursts must not cross a 4 KB boundary
+                BurstAdr_v := axiWordAddr(Addr_c)+Beat_v*AxiBytes_c;
+                To4k_v     := (4096 - to_integer(BurstAdr_v(11 downto 0)))/AxiBytes_c;
+                Beats_v    := minimum(minimum(AxiBeats_c-Beat_v, AxiMaxBeats_g), To4k_v);
+            end if;
+            Code_v    := AxiResp_Okay_c;
+            ErrBeat_v := -1;
             if errBeat >= Beat_v and errBeat < Beat_v+Beats_v then
                 Code_v    := errCode;
                 ErrBeat_v := errBeat-Beat_v;
@@ -394,7 +439,7 @@ architecture sim of olo_axi_master_full_tb is
                 Code_v    := errCode2;
                 ErrBeat_v := errBeat2-Beat_v;
             end if;
-            expect_ar (net, AxiSlave_c, axiWordAddr(address)+Beat_v*AxiBytes_c, len => Beats_v, burst => AxiBurst_Incr_c);
+            expect_ar (net, AxiSlave_c, BurstAdr_v, len => Beats_v, burst => choose(fixed, AxiBurst_Fixed_c, AxiBurst_Incr_c));
             push_r_arbitrary (net, AxiSlave_c, Beats_v, resize(shift_right(Data_c, Beat_v*AxiDataWidth_g), Beats_v*AxiDataWidth_g),
                               error_code => Code_v, error_beat => ErrBeat_v);
             Beat_v := Beat_v + Beats_v;
@@ -755,6 +800,142 @@ begin
                 end if;
             end if;
 
+            -- *** FIXED Bursts ***
+            -- The data is packed from lane 0 at the AXI word of the command address (its low bits are ignored),
+            -- in bursts of at most FixedMaxBeats_c beats at that word
+            if run("FixedWrites") then
+                if ImplWrite_g then
+
+                    -- Aligned and unaligned command addresses
+                    for Unaligned in 0 to 1 loop
+
+                        for i in FixedSizes_c'range loop
+                            Addr_v      := resize(x"0A00"+256*i+Unaligned*((2*i+1) mod AxiBytes_c), AxiAddrWidth_g);
+                            Data_v      := resize(x"30"+16*i+64*Unaligned, UserDataWidth_g);
+                            DataBytes_v := FixedSizes_c(i);
+                            UserBeats_v := (DataBytes_v+UserBytes_c-1)/UserBytes_c;
+                            -- Slave
+                            expectAxiWrite(net, Addr_v, Data_v, DataBytes_v, fixed => true);
+                            -- Master
+                            pushCommand(net, WrCmdMaster_c, Addr_v, DataBytes_v, CmdFixed => '1');
+                            pushWrData(net, Data_v, beats => UserBeats_v);
+                            -- Blocking
+                            expectWrResponse(RespSuccess);
+                        end loop;
+
+                    end loop;
+
+                end if;
+            end if;
+
+            if run("FixedReads") then
+                if ImplRead_g then
+
+                    -- Aligned and unaligned command addresses
+                    for Unaligned in 0 to 1 loop
+
+                        for i in FixedSizes_c'range loop
+                            Addr_v      := resize(x"1A00"+256*i+Unaligned*((2*i+1) mod AxiBytes_c), AxiAddrWidth_g);
+                            Data_v      := resize(x"40"+16*i+64*Unaligned, UserDataWidth_g);
+                            DataBytes_v := FixedSizes_c(i);
+                            UserBeats_v := (DataBytes_v+UserBytes_c-1)/UserBytes_c;
+                            -- Slave
+                            pushAxiRead(net, Addr_v, Data_v, DataBytes_v, fixed => true);
+                            -- Master
+                            pushCommand(net, RdCmdMaster_c, Addr_v, DataBytes_v, CmdFixed => '1');
+                            -- The data checks first: the longest command does not fit into the data FIFO
+                            expectRdData(net, Data_v, beats => UserBeats_v, lastBytes => DataBytes_v mod UserBytes_c);
+                            -- Blocking
+                            expectRdResponse(RespSuccess);
+                        end loop;
+
+                    end loop;
+
+                end if;
+            end if;
+
+            -- INCR, FIXED (two bursts), INCR back to back: the burst type and the alignment belong to their command
+            if run("FixedIncr-PipelinedWrites") then
+                if ImplWrite_g then
+
+                    for i in 0 to 2 loop
+                        Addr_v      := resize(x"08FF"+i, AxiAddrWidth_g);
+                        Data_v      := resize(x"10"+16*i, UserDataWidth_g);
+                        DataBytes_v := choose(i = 1, (FixedMaxBeats_c+1)*AxiBytes_c+3, 2*AxiBytes_c);
+                        UserBeats_v := (DataBytes_v+UserBytes_c-1)/UserBytes_c;
+                        -- Slave
+                        expectAxiWrite(net, Addr_v, Data_v, DataBytes_v, fixed => (i = 1));
+                        -- Master
+                        pushCommand(net, WrCmdMaster_c, Addr_v, DataBytes_v, CmdFixed => choose(i = 1, '1', '0'));
+                        pushWrData(net, Data_v, beats => UserBeats_v);
+                    end loop;
+
+                    -- Expect the 3 responses
+                    for i in 0 to 2 loop
+                        expectWrResponse(RespSuccess);
+                    end loop;
+
+                end if;
+            end if;
+
+            if run("FixedIncr-PipelinedReads") then
+                if ImplRead_g then
+
+                    for i in 0 to 2 loop
+                        Addr_v      := resize(x"08FF"+i, AxiAddrWidth_g);
+                        Data_v      := resize(x"10"+16*i, UserDataWidth_g);
+                        DataBytes_v := choose(i = 1, (FixedMaxBeats_c+1)*AxiBytes_c+3, 2*AxiBytes_c);
+                        UserBeats_v := (DataBytes_v+UserBytes_c-1)/UserBytes_c;
+                        -- Slave
+                        pushAxiRead(net, Addr_v, Data_v, DataBytes_v, fixed => (i = 1));
+                        -- Master
+                        pushCommand(net, RdCmdMaster_c, Addr_v, DataBytes_v, CmdFixed => choose(i = 1, '1', '0'));
+                        expectRdData(net, Data_v, beats => UserBeats_v, lastBytes => DataBytes_v mod UserBytes_c);
+                    end loop;
+
+                    -- Expect all responses
+                    for i in 0 to 2 loop
+                        expectRdResponse(RespSuccess);
+                    end loop;
+
+                end if;
+            end if;
+
+            -- Error response of the second FIXED burst
+            if run("FixedWrite-SlvErr") then
+                if ImplWrite_g then
+                    Addr_v      := resize(x"0C03", AxiAddrWidth_g);
+                    Data_v      := resize(x"60", UserDataWidth_g);
+                    DataBytes_v := (FixedMaxBeats_c+1)*AxiBytes_c;
+                    UserBeats_v := DataBytes_v/UserBytes_c;
+                    -- Slave
+                    expectAxiWrite(net, Addr_v, Data_v, DataBytes_v,
+                                   errBurst => 1, errCode => AxiResp_SlvErr_c, fixed => true);
+                    -- Master
+                    pushCommand(net, WrCmdMaster_c, Addr_v, DataBytes_v, CmdFixed => '1');
+                    pushWrData(net, Data_v, beats => UserBeats_v);
+                    -- Blocking
+                    expectWrResponse(RespError, AxiResp_SlvErr_c);
+                end if;
+            end if;
+
+            if run("FixedRead-SlvErr") then
+                if ImplRead_g then
+                    Addr_v      := resize(x"0C03", AxiAddrWidth_g);
+                    Data_v      := resize(x"70", UserDataWidth_g);
+                    DataBytes_v := (FixedMaxBeats_c+1)*AxiBytes_c;
+                    UserBeats_v := DataBytes_v/UserBytes_c;
+                    -- Slave
+                    pushAxiRead(net, Addr_v, Data_v, DataBytes_v,
+                                errBeat => FixedMaxBeats_c, errCode => AxiResp_SlvErr_c, fixed => true);
+                    -- Master
+                    pushCommand(net, RdCmdMaster_c, Addr_v, DataBytes_v, CmdFixed => '1');
+                    expectRdData(net, Data_v, beats => UserBeats_v, lastBytes => DataBytes_v mod UserBytes_c);
+                    -- Blocking
+                    expectRdResponse(RespError, AxiResp_SlvErr_c);
+                end if;
+            end if;
+
             -- Wait for idle
             wait_until_idle(net, as_sync(AxiSlave_c));
             wait_until_idle(net, as_sync(RdDataSlave_c));
@@ -819,12 +1000,14 @@ begin
             CmdWr_Addr     => CmdWr_Addr,
             CmdWr_Size     => CmdWr_Size,
             CmdWr_LowLat   => CmdWr_LowLat,
+            CmdWr_Fixed    => CmdWr_Fixed,
             CmdWr_Valid    => CmdWr_Valid,
             CmdWr_Ready    => CmdWr_Ready,
             -- User Command Interface
             CmdRd_Addr     => CmdRd_Addr,
             CmdRd_Size     => CmdRd_Size,
             CmdRd_LowLat   => CmdRd_LowLat,
+            CmdRd_Fixed    => CmdRd_Fixed,
             CmdRd_Valid    => CmdRd_Valid,
             CmdRd_Ready    => CmdRd_Ready,
             -- Write Data
@@ -907,7 +1090,7 @@ begin
         );
 
     b_wr_cmd : block is
-        signal TDataLocal : std_logic_vector(CmdLowLat_c downto 0);
+        signal TDataLocal : std_logic_vector(CmdFixed_c downto 0);
     begin
 
         vc_wr_cmd : entity vunit_lib.axi_stream_master
@@ -924,10 +1107,11 @@ begin
         CmdWr_Addr   <= TDataLocal(CmdAddrRange_c);
         CmdWr_Size   <= TDataLocal(CmdSizeRange_c);
         CmdWr_LowLat <= TDataLocal(CmdLowLat_c);
+        CmdWr_Fixed  <= TDataLocal(CmdFixed_c);
     end block;
 
     b_rd_cmd : block is
-        signal TDataLocal : std_logic_vector(CmdLowLat_c downto 0);
+        signal TDataLocal : std_logic_vector(CmdFixed_c downto 0);
     begin
 
         vc_rd_cmd : entity vunit_lib.axi_stream_master
@@ -944,6 +1128,7 @@ begin
         CmdRd_Addr   <= TDataLocal(CmdAddrRange_c);
         CmdRd_Size   <= TDataLocal(CmdSizeRange_c);
         CmdRd_LowLat <= TDataLocal(CmdLowLat_c);
+        CmdRd_Fixed  <= TDataLocal(CmdFixed_c);
     end block;
 
     b_wr_data : block is
