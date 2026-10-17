@@ -245,12 +245,7 @@ begin
 
                 -- Detect Bus Busy by Start Command
                 if (r.Cmd_Ready = '1') and (Cmd_Valid = '1') then
-                    -- Everyting else than START commands is ignored and an error is printed in this case
-                    -- synthesis translate_off
-                    assert (Cmd_Command = I2cCmd_Start_c) or DisableAsserts_g
-                        report errorMessage(EntityName_c, "In idle state, only I2cCmd_Start_c commands are allowed!")
-                        severity error;
-                    -- synthesis translate_on
+                    -- Everyting else than START commands is ignored and an error is printed in this case (p_check)
                     v.CmdTypeLatch := Cmd_Command;
                     if Cmd_Command = I2cCmd_Start_c then
                         v.Fsm       := Start1_s;
@@ -341,12 +336,7 @@ begin
 
                 -- All commands except START are allowed, START commands are ignored
                 if (r.Cmd_Ready = '1') and (Cmd_Valid = '1') then
-                    -- synthesis translate_off
-                    assert (Cmd_Command = I2cCmd_Stop_c) or (Cmd_Command = I2cCmd_RepStart_c) or
-                           (Cmd_Command = I2cCmd_Send_c) or (Cmd_Command = I2cCmd_Receive_c) or DisableAsserts_g
-                        report errorMessage(EntityName_c, "In WaitCmd_s state, I2cCmd_Start_c commands are not allowed!")
-                        severity error;
-                    -- synthesis translate_on
+                    -- START commands are ignored and an error is printed in this case (p_check)
                     if (Cmd_Command = I2cCmd_Stop_c) or (Cmd_Command = I2cCmd_RepStart_c) or
                        (Cmd_Command = I2cCmd_Send_c) or (Cmd_Command = I2cCmd_Receive_c) then
                         v.Fsm       := WaitLowCenter_s;
@@ -606,6 +596,32 @@ begin
         I2c_Scl   <= '0';
         I2c_Sda   <= '0';
     end generate;
+
+    -----------------------------------------------------------------------------------------------
+    -- Command Checks (simulation only)
+    -----------------------------------------------------------------------------------------------
+    -- The commands are checked when they are accepted at the clock edge: in p_comb the checks would also see a
+    -- command and its valid that settle in different delta cycles
+    -- synthesis translate_off
+    p_check : process (Clk) is
+    begin
+        if rising_edge(Clk) then
+            if (r.Cmd_Ready = '1') and (Cmd_Valid = '1') and (not DisableAsserts_g) then
+                if r.Fsm = BusIdle_s then
+                    assert Cmd_Command = I2cCmd_Start_c
+                        report errorMessage(EntityName_c, "In idle state, only I2cCmd_Start_c commands are allowed!")
+                        severity error;
+                elsif r.Fsm = WaitCmd_s then
+                    assert (Cmd_Command = I2cCmd_Stop_c) or (Cmd_Command = I2cCmd_RepStart_c) or
+                           (Cmd_Command = I2cCmd_Send_c) or (Cmd_Command = I2cCmd_Receive_c)
+                        report errorMessage(EntityName_c, "In WaitCmd_s state, I2cCmd_Start_c commands are not allowed!")
+                        severity error;
+                end if;
+            end if;
+        end if;
+    end process;
+
+    -- synthesis translate_on
 
     -----------------------------------------------------------------------------------------------
     -- Sequential Proccess
