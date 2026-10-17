@@ -148,10 +148,6 @@ begin
 
                     -- Select last chunk for byte-enables (based on byte enables)
                     if UseBe_g = true then
-                        -- Check correct BE usage
-                        assert (In_Last = '1') or (In_Be = onesVector(In_Be'length))
-                            report errorMessage(EntityName_c, "Incomplete byte enables are only supported for last beat")
-                            severity failure;
                         -- Assert last chunk on correct byte (default)
                         v.LastChunk(v.ChunkCnt + InChunks_c-1) := In_Last;
 
@@ -189,6 +185,22 @@ begin
                 end if;
             end if;
         end process;
+
+        -- Check correct BE usage of accepted beats at the clock edge: in p_comb the check would also see byte
+        -- enables and last of a source that settle in different delta cycles
+        -- synthesis translate_off
+        p_check : process (Clk) is
+        begin
+            if rising_edge(Clk) then
+                if UseBe_g and (In_Valid = '1') and (In_Ready = '1') then
+                    assert (In_Last = '1') or (In_Be = onesVector(In_Be'length))
+                        report errorMessage(EntityName_c, "Incomplete byte enables are only supported for last beat")
+                        severity failure;
+                end if;
+            end if;
+        end process;
+
+        -- synthesis translate_on
 
     end generate;
 
