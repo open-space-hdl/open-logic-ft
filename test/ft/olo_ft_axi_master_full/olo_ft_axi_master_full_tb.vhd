@@ -87,6 +87,7 @@ architecture sim of olo_ft_axi_master_full_tb is
     subtype CmdAddrRange_c is natural range AxiAddrWidth_c - 1 downto 0;
     subtype CmdSizeRange_c is natural range UserTransactionSizeBits_c + CmdAddrRange_c'high downto CmdAddrRange_c'high + 1;
     constant CmdLowLat_c : natural := CmdSizeRange_c'high + 1;
+    constant CmdFixed_c  : natural := CmdLowLat_c + 1;
 
     -----------------------------------------------------------------------------------------------
     -- TB Definitions
@@ -104,11 +105,13 @@ architecture sim of olo_ft_axi_master_full_tb is
     signal CmdWr_Addr        : std_logic_vector(AxiAddrWidth_c - 1 downto 0)            := (others => '0');
     signal CmdWr_Size        : std_logic_vector(UserTransactionSizeBits_c - 1 downto 0) := (others => '0');
     signal CmdWr_LowLat      : std_logic                                                := '0';
+    signal CmdWr_Fixed       : std_logic                                                := '0';
     signal CmdWr_Valid       : std_logic                                                := '0';
     signal CmdWr_Ready       : std_logic;
     signal CmdRd_Addr        : std_logic_vector(AxiAddrWidth_c - 1 downto 0)            := (others => '0');
     signal CmdRd_Size        : std_logic_vector(UserTransactionSizeBits_c - 1 downto 0) := (others => '0');
     signal CmdRd_LowLat      : std_logic                                                := '0';
+    signal CmdRd_Fixed       : std_logic                                                := '0';
     signal CmdRd_Valid       : std_logic                                                := '0';
     signal CmdRd_Ready       : std_logic;
     signal Wr_Data           : std_logic_vector(UserDataWidth_c - 1 downto 0)           := (others => '0');
@@ -155,12 +158,12 @@ architecture sim of olo_ft_axi_master_full_tb is
     );
 
     constant WrCmdMaster_c : axi_stream_master_t := new_axi_stream_master (
-        data_length  => AxiAddrWidth_c + UserTransactionSizeBits_c + 1,
+        data_length  => AxiAddrWidth_c + UserTransactionSizeBits_c + 2,
         stall_config => new_stall_config(0.0, 0, 0)
     );
 
     constant RdCmdMaster_c : axi_stream_master_t := new_axi_stream_master (
-        data_length  => AxiAddrWidth_c + UserTransactionSizeBits_c + 1,
+        data_length  => AxiAddrWidth_c + UserTransactionSizeBits_c + 2,
         stall_config => new_stall_config(0.0, 0, 0)
     );
 
@@ -174,12 +177,14 @@ architecture sim of olo_ft_axi_master_full_tb is
         CmdMaster  : axi_stream_master_t;
         CmdAddr    : unsigned;
         CmdSize    : integer;
-        CmdLowLat  : std_logic := '0') is
-        variable TData_v : std_logic_vector(CmdLowLat_c downto 0);
+        CmdLowLat  : std_logic := '0';
+        CmdFixed   : std_logic := '0') is
+        variable TData_v : std_logic_vector(CmdFixed_c downto 0);
     begin
         TData_v(CmdAddrRange_c) := std_logic_vector(resize(CmdAddr, AxiAddrWidth_c));
         TData_v(CmdSizeRange_c) := toUslv(CmdSize, UserTransactionSizeBits_c);
         TData_v(CmdLowLat_c)    := CmdLowLat;
+        TData_v(CmdFixed_c)     := CmdFixed;
         push_axi_stream(net, CmdMaster, TData_v);
     end procedure;
 
@@ -463,6 +468,32 @@ begin
                 end if;
 
             ---------------------------------------------------------------------------------------
+            elsif run("FixedWrite") then
+                -- CmdWr_Fixed passes through: FIXED bursts of at most 16 beats at the AXI word of the command
+                -- address (its low bits are ignored)
+                if ImplWrite_g and AxiMaxBeats_c >= 16 then
+                    pushCommand(net, WrCmdMaster_c, x"00000701", 20 * ByteWidth_c, CmdFixed => '1');
+                    pushWrData(net, x"2345", 1, 20);
+                    expect_burst_write_aligned(net, AxiSlave_c, x"0700", x"2345", 1, 16, burst => AxiBurst_Fixed_c);
+                    expect_burst_write_aligned(net, AxiSlave_c, x"0700", x"2355", 1, 4, burst => AxiBurst_Fixed_c);
+                    expectWrResponse(RespSuccess);
+                    check_equal(WrSecCnt, 0, "WrSecCnt");
+                    check_equal(WrDedCnt, 0, "WrDedCnt");
+                end if;
+
+            ---------------------------------------------------------------------------------------
+            elsif run("FixedRead") then
+                -- CmdRd_Fixed passes through: FIXED bursts of at most 16 beats at the AXI word of the command
+                -- address (its low bits are ignored)
+                if ImplRead_g and AxiMaxBeats_c >= 16 then
+                    pushCommand(net, RdCmdMaster_c, x"00000781", 20 * ByteWidth_c, CmdFixed => '1');
+                    push_burst_read_aligned(net, AxiSlave_c, x"0780", x"3456", 1, 16, burst => AxiBurst_Fixed_c);
+                    push_burst_read_aligned(net, AxiSlave_c, x"0780", x"3466", 1, 4, burst => AxiBurst_Fixed_c);
+                    expectRdData(net, x"3456", 1, 20);
+                    expectRdResponse(RespSuccess);
+                end if;
+
+            ---------------------------------------------------------------------------------------
             elsif run("WriteSecInjection") then
                 -- A single-bit flip on the stored data codeword must be corrected before the
                 -- beat reaches the AXI bus, and reported with exactly one Wr_EccSec pulse.
@@ -726,11 +757,13 @@ begin
             CmdWr_Addr        => CmdWr_Addr,
             CmdWr_Size        => CmdWr_Size,
             CmdWr_LowLat      => CmdWr_LowLat,
+            CmdWr_Fixed       => CmdWr_Fixed,
             CmdWr_Valid       => CmdWr_Valid,
             CmdWr_Ready       => CmdWr_Ready,
             CmdRd_Addr        => CmdRd_Addr,
             CmdRd_Size        => CmdRd_Size,
             CmdRd_LowLat      => CmdRd_LowLat,
+            CmdRd_Fixed       => CmdRd_Fixed,
             CmdRd_Valid       => CmdRd_Valid,
             CmdRd_Ready       => CmdRd_Ready,
             Wr_Data           => Wr_Data,
@@ -814,7 +847,7 @@ begin
         );
 
     b_wr_cmd : block is
-        signal TDataLocal : std_logic_vector(CmdLowLat_c downto 0);
+        signal TDataLocal : std_logic_vector(CmdFixed_c downto 0);
     begin
 
         vc_wr_cmd : entity vunit_lib.axi_stream_master
@@ -831,10 +864,11 @@ begin
         CmdWr_Addr   <= TDataLocal(CmdAddrRange_c);
         CmdWr_Size   <= TDataLocal(CmdSizeRange_c);
         CmdWr_LowLat <= TDataLocal(CmdLowLat_c);
+        CmdWr_Fixed  <= TDataLocal(CmdFixed_c);
     end block;
 
     b_rd_cmd : block is
-        signal TDataLocal : std_logic_vector(CmdLowLat_c downto 0);
+        signal TDataLocal : std_logic_vector(CmdFixed_c downto 0);
     begin
 
         vc_rd_cmd : entity vunit_lib.axi_stream_master
@@ -851,6 +885,7 @@ begin
         CmdRd_Addr   <= TDataLocal(CmdAddrRange_c);
         CmdRd_Size   <= TDataLocal(CmdSizeRange_c);
         CmdRd_LowLat <= TDataLocal(CmdLowLat_c);
+        CmdRd_Fixed  <= TDataLocal(CmdFixed_c);
     end block;
 
     vc_wr_data : entity vunit_lib.axi_stream_master

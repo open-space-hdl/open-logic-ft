@@ -37,6 +37,20 @@ For each command there are two operation modes:
   - This approach leads to lowest latency since the user logic can prepare the data on the fly without the transaction
     being delayed.
 
+### FIXED Bursts
+
+A command with _CmdWr_Fixed_ or _CmdRd_Fixed_ = '1' is executed with non-incrementing bursts (AXI burst type FIXED):
+every burst of the command accesses the command address, for example to empty or fill a FIFO behind a single address.
+
+- Each burst has at most min(_AxiMaxBeats_g_, 16) beats (AXI4 limits FIXED bursts to 16 beats).
+- The bursts are not split at 4kB boundaries, because a FIXED burst accesses only one address.
+- The command address must be aligned, as for every command.
+- Responses, the latency modes and the data FIFOs work as for incrementing bursts.
+- Commands with and without _Fixed_ can follow each other back to back: _M_Axi_AwBurst_ and _M_Axi_ArBurst_ always
+  belong to the burst on the address channel.
+
+### Alignment
+
 This entity does not handle unaligned transactions and word-width conversions. The data width of the user interface and
 the AXI bus are the same and all commands must be aligned to that word-width. This is the reason for the term _simple_
 in the name of the entity.
@@ -101,6 +115,7 @@ transaction. If some application or tool require these signals, the user should 
 | CmdWr_Addr   | in     | _AxiAddrWidth_g_            | 0       | Address to start writing at (must be aligned)                |
 | CmdWr_Size   | in     | _UserTransactionSizeBits_g_ | 0       | Number of beats in the transfer.<br />The number may exceed _AxiMaxBeats_g_ and 4k boundaries. Transfers are splitted by the _olo_axi_master_simple_ automatically. |
 | CmdWr_LowLat | in     | 1                           | '0'     | **'1'** \--\> Low latency mode, **'0'** \--\> High latency mode |
+| CmdWr_Fixed  | in     | 1                           | '0'     | **'1'** \--\> FIXED bursts, all at _CmdWr_Addr_, **'0'** \--\> incrementing bursts<br />See [FIXED Bursts](#fixed-bursts) |
 | CmdWr_Valid  | in     | 1                           | '0'     | AXI-S handshaking signal for _CmdWr_                         |
 | CmdWr_Ready  | out    | 1                           | -       | AXI-S handshaking signal for _CmdWr_                         |
 
@@ -120,6 +135,7 @@ transaction. If some application or tool require these signals, the user should 
 | CmdRd_Addr   | in     | _AxiAddrWidth_g_            | 0       | Address to start reading at (must be aligned)                |
 | CmdRd_Size   | in     | _UserTransactionSizeBits_g_ | 0       | Number of beats in the transfer<br />The number may exceed _AxiMaxBeats_g_ and 4k boundaries. Transfers are splitted by the _olo_axi_master_simple_ automatically. |
 | CmdRd_LowLat | in     | 1                           | '0'     | **'1'** \--\> Low latency mode, **'0'** \--\> High latency mode |
+| CmdRd_Fixed  | in     | 1                           | '0'     | **'1'** \--\> FIXED bursts, all at _CmdRd_Addr_, **'0'** \--\> incrementing bursts<br />See [FIXED Bursts](#fixed-bursts) |
 | CmdRd_Valid  | in     | 1                           | '0'     | AXI-S handshaking signal for _CmdRd_                         |
 | CmdRd_Ready  | out    | 1                           | -       | AXI-S handshaking signal for _CmdRd_                         |
 

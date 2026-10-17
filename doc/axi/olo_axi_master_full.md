@@ -46,6 +46,19 @@ resource utilization.
 
 Read and write logic are fully independent. So reads and writes can happen at the same time.
 
+### FIXED Bursts
+
+A command with _CmdWr_Fixed_ or _CmdRd_Fixed_ = '1' is executed with FIXED bursts as described for
+[olo_axi_master_simple](olo_axi_master_simple.md#fixed-bursts): all bursts at the same address, at most 16 beats each,
+not split at 4kB boundaries. For such a command:
+
+- The address bits below the AXI data width are ignored: the transfer starts at the AXI word that contains the address.
+- The user data is packed into the AXI beats from byte lane 0 without realignment: beat n carries the bytes n x B to
+  n x B + B - 1 of the transfer, B = _AxiDataWidth_g_/8.
+- Write: the strobes of the last beat are set for the remaining bytes only.
+- Read: of the last beat only the remaining bytes are delivered.
+- _CmdWr_Size_ and _CmdRd_Size_ remain in bytes.
+
 ## Generics
 
 | Name                      | Type     | Default | Description                                                  |
@@ -99,6 +112,7 @@ transaction. If some application or tool require these signals, the user should 
 | CmdWr_Addr   | in     | _AxiAddrWidth_g_            | 0       | Address to start writing at. Unaligned addresses are allowed and data is aligned automatically. |
 | CmdWr_Size   | in     | _UserTransactionSizeBits_g_ | 0       | Number of bytes in the transfer.<br />Transfers may exceed _AxiMaxBeats_g_ and 4k boundaries. Transfers are splitted by the _olo_axi_master_simple_ automatically. |
 | CmdWr_LowLat | in     | 1                           | '0'     | **'1'** \--\> Low latency mode, **'0'** \--\> High latency mode<br />It is recommended to **not** use low-latency transfers if _AxiDataWidth_g > UserDataWidth_g_ because the width conversion limits the bandwidth which would lead to stall-cycles on the AXI bus. |
+| CmdWr_Fixed  | in     | 1                           | '0'     | **'1'** \--\> FIXED bursts at the AXI word of _CmdWr_Addr_, **'0'** \--\> incrementing bursts<br />See [FIXED Bursts](#fixed-bursts) |
 | CmdWr_Valid  | in     | 1                           | '0'     | AXI-S handshaking signal for _CmdWr_                         |
 | CmdWr_Ready  | out    | 1                           | -       | AXI-S handshaking signal for _CmdWr_                         |
 
@@ -117,6 +131,7 @@ transaction. If some application or tool require these signals, the user should 
 | CmdRd_Addr   | in     | _AxiAddrWidth_g_            | 0       | Address to start reading at. Unaligned addresses are allowed and data is aligned automatically. |
 | CmdRd_Size   | in     | _UserTransactionSizeBits_g_ | 0       | Number of bytes in the transfer<br />Transfers may exceed _AxiMaxBeats_g_ and 4k boundaries. Transfers are splitted by the _olo_axi_master_simple_ automatically. |
 | CmdRd_LowLat | in     | 1                           | '0'     | **'1'** \--\> Low latency mode, **'0'** \--\> High latency mode<br />It is recommended to **not** use low-latency transfers if _AxiDataWidth_g > UserDataWidth_g_ because the width conversion limits the bandwidth which would lead to stall-cycles on the AXI bus. |
+| CmdRd_Fixed  | in     | 1                           | '0'     | **'1'** \--\> FIXED bursts at the AXI word of _CmdRd_Addr_, **'0'** \--\> incrementing bursts<br />See [FIXED Bursts](#fixed-bursts) |
 | CmdRd_Valid  | in     | 1                           | '0'     | AXI-S handshaking signal for _CmdRd_                         |
 | CmdRd_Ready  | out    | 1                           | -       | AXI-S handshaking signal for _CmdRd_                         |
 
