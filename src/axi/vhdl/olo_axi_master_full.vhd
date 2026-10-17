@@ -308,7 +308,8 @@ begin
                     v.WrShift         := byteOffset(CmdWrAddr_v);
                     v.AxiWrCmd_LowLat := CmdWr_LowLat;
                     v.AxiWrCmd_Fixed  := CmdWr_Fixed;
-                    if CmdWr_Valid = '1' then
+                    -- Handshake: CmdWr_Ready is low in the first cycle after the reset
+                    if (r.CmdWr_Ready = '1') and (CmdWr_Valid = '1') then
                         v.CmdWr_Ready := '0';
                         v.WrCmdFsm    := Apply_s;
                     end if;
@@ -478,7 +479,8 @@ begin
                     v.AxiRdCmd_Fixed  := CmdRd_Fixed;
                     v.RdShift         := byteOffset(CmdRdAddr_v);
                     v.RdLowIdx        := to_unsigned(AxiBytes_c, v.RdLowIdx'length) - byteOffset(CmdRdAddr_v);
-                    if CmdRd_Valid = '1' then
+                    -- Handshake: CmdRd_Ready is low in the first cycle after the reset
+                    if (r.CmdRd_Ready = '1') and (CmdRd_Valid = '1') then
                         v.CmdRd_Ready := '0';
                         v.RdCmdFsm    := Apply_s;
                     end if;
