@@ -485,6 +485,44 @@ begin
 
             end if;
 
+            -- *** A command that is valid while the reset is released is executed once ***
+            -- The command source is outside the reset of the master: command A is valid during the reset and in the
+            -- first clock cycle after it, command B follows. A second execution of A would take the place of B. The
+            -- write data follow the reset (the master discards inputs during its reset).
+            if run("CommandAtResetRelease") then
+                UserBeats_v := (AxiBytes_c+UserBytes_c-1)/UserBytes_c;
+                if ImplWrite_g then
+                    wait until rising_edge(Clk);
+                    Rst <= '1';
+                    expectAxiWrite(net, resize(x"0400", AxiAddrWidth_g), resize(x"31", UserDataWidth_g), AxiBytes_c);
+                    expectAxiWrite(net, resize(x"0600", AxiAddrWidth_g), resize(x"51", UserDataWidth_g), AxiBytes_c);
+                    pushCommand(net, WrCmdMaster_c, resize(x"0400", AxiAddrWidth_g), AxiBytes_c);
+                    wait for 1 us;
+                    wait until rising_edge(Clk);
+                    Rst <= '0';
+                    pushWrData(net, resize(x"31", UserDataWidth_g), beats => UserBeats_v);
+                    pushCommand(net, WrCmdMaster_c, resize(x"0600", AxiAddrWidth_g), AxiBytes_c);
+                    pushWrData(net, resize(x"51", UserDataWidth_g), beats => UserBeats_v);
+                    expectWrResponse(RespSuccess);
+                    expectWrResponse(RespSuccess);
+                end if;
+                if ImplRead_g then
+                    wait until rising_edge(Clk);
+                    Rst <= '1';
+                    pushAxiRead(net, resize(x"1400", AxiAddrWidth_g), resize(x"41", UserDataWidth_g), AxiBytes_c);
+                    pushAxiRead(net, resize(x"1600", AxiAddrWidth_g), resize(x"61", UserDataWidth_g), AxiBytes_c);
+                    pushCommand(net, RdCmdMaster_c, resize(x"1400", AxiAddrWidth_g), AxiBytes_c);
+                    wait for 1 us;
+                    wait until rising_edge(Clk);
+                    Rst <= '0';
+                    pushCommand(net, RdCmdMaster_c, resize(x"1600", AxiAddrWidth_g), AxiBytes_c);
+                    expectRdData(net, resize(x"41", UserDataWidth_g), beats => UserBeats_v);
+                    expectRdData(net, resize(x"61", UserDataWidth_g), beats => UserBeats_v);
+                    expectRdResponse(RespSuccess);
+                    expectRdResponse(RespSuccess);
+                end if;
+            end if;
+
             -- *** Single Byte Writes ***
             if run("SingleByteWrites") then
                 if ImplWrite_g then
