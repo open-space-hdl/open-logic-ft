@@ -367,6 +367,44 @@ begin
 
             end if;
 
+            -- *** A command that is valid while the reset is released is executed once ***
+            -- The command source is outside the reset of the master: command A is valid during the reset and in the
+            -- first clock cycle after it, command B follows. A second execution of A would take the place of B. The
+            -- write data follow the reset (the master discards inputs during its reset). The addresses are aligned
+            -- for every AxiDataWidth_g (128 bytes).
+            if run("CommandAtResetRelease") then
+                if ImplWrite_g then
+                    wait until rising_edge(Clk);
+                    Rst <= '1';
+                    expect_single_write (net, AxiSlave_c, X"1080", X"3131");
+                    expect_single_write (net, AxiSlave_c, X"1100", X"5151");
+                    pushCommand(net, WrCmdMaster_c, X"1080", 1);
+                    wait for 1 us;
+                    wait until rising_edge(Clk);
+                    Rst <= '0';
+                    pushWrData(net, X"3131");
+                    pushCommand(net, WrCmdMaster_c, X"1100", 1);
+                    pushWrData(net, X"5151");
+                    expectWrResponse(RespSuccess);
+                    expectWrResponse(RespSuccess);
+                end if;
+                if ImplRead_g then
+                    wait until rising_edge(Clk);
+                    Rst <= '1';
+                    push_single_read (net, AxiSlave_c, X"2080", X"4141");
+                    push_single_read (net, AxiSlave_c, X"2100", X"6161");
+                    pushCommand(net, RdCmdMaster_c, X"2080", 1);
+                    wait for 1 us;
+                    wait until rising_edge(Clk);
+                    Rst <= '0';
+                    pushCommand(net, RdCmdMaster_c, X"2100", 1);
+                    expectRdData(net, X"4141");
+                    expectRdData(net, X"6161");
+                    expectRdResponse(RespSuccess);
+                    expectRdResponse(RespSuccess);
+                end if;
+            end if;
+
             -- *** Single Writes ***
             if run("SingleWrite-DataCmdTogether") then
                 -- Only applies if Write is implemented
