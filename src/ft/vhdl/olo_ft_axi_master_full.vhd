@@ -26,6 +26,7 @@ library ieee;
 
 library work;
     use work.olo_base_pkg_math.all;
+    use work.olo_base_pkg_string.all;
     use work.olo_ft_pkg_ecc.all;
 
 ---------------------------------------------------------------------------------------------------
@@ -45,6 +46,7 @@ entity olo_ft_axi_master_full is
         RamBehavior_g             : string                   := "RBW";
         RamStyle_g                : string                   := "auto";
         IntFifoRamStyle_g         : string                   := "registers";
+        IntFifoDepth_g            : natural                  := 0;
         EccPipeline_g             : natural range 0 to 2     := 0
     );
     port (
@@ -139,9 +141,11 @@ architecture rtl of olo_ft_axi_master_full is
     constant WrBufWidth_c : positive := UserDataWidth_g;
     constant RdBufWidth_c : positive := UserDataWidth_g + 1;
 
-    -- The internal FIFOs of the wrapped master only cover the burst-issuance window (sized in
-    -- AXI-width words). Two maximum bursts allow back-to-back operation.
-    constant IntFifoDepth_c : positive := 2 * AxiMaxBeats_g;
+    constant EntityName_c : string := "olo_ft_axi_master_full";
+
+    -- The internal FIFOs of the wrapped master cover the burst-issuance window (AXI-width words):
+    -- IntFifoDepth_g, by default two maximum bursts (back-to-back operation)
+    constant IntFifoDepth_c : positive := choose(IntFifoDepth_g = 0, 2 * AxiMaxBeats_g, IntFifoDepth_g);
 
     -- Write buffer -> wrapped master
     signal WrBuf_OutData  : std_logic_vector(WrBufWidth_c - 1 downto 0);
@@ -159,6 +163,11 @@ architecture rtl of olo_ft_axi_master_full is
     signal MRd_Ready     : std_logic := '0';
 
 begin
+
+    -- In high-latency mode the wrapped master requests a burst only when the internal FIFO can hold it
+    assert (IntFifoDepth_g = 0) or (IntFifoDepth_g >= AxiMaxBeats_g)
+        report errorMessage(EntityName_c, "IntFifoDepth_g must be 0 or at least AxiMaxBeats_g")
+        severity failure;
 
     -----------------------------------------------------------------------------------------------
     -- Write Data Buffer (ECC-protected)

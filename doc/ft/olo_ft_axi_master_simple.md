@@ -33,9 +33,10 @@ semantics. Differences and additions:
 
 | Name              | Type    | Default     | Description                                                  |
 | :---------------- | :------ | ----------- | :----------------------------------------------------------- |
-| DataFifoDepth_g   | positive | 1024       | Number of entries of the **ECC-protected** write/read data buffers (in words). The internal FIFOs of the wrapped master are sized separately (fixed at 2 x _AxiMaxBeats_g_). |
+| DataFifoDepth_g   | positive | 1024       | Number of entries of the **ECC-protected** write/read data buffers (in words). The internal FIFOs of the wrapped master are sized separately (_IntFifoDepth_g_). |
 | RamStyle_g        | string  | "auto"      | RAM style of the ECC-protected data buffers. Any medium is acceptable here because the content is a full ECC codeword. |
 | IntFifoRamStyle_g | string  | "registers" | RAM style of the wrapped master's five internal FIFOs. The default "registers" keeps them in flip-flops so vendor TMR covers them. Overriding this to a RAM primitive re-introduces non-ECC-protected RAM state and is discouraged for fault-tolerant designs (see [Fault-Tolerant Storage](#fault-tolerant-storage)). |
+| IntFifoDepth_g    | natural | 0           | Entries of the wrapped master's internal data FIFOs, in words. 0 selects 2 x _AxiMaxBeats_g_. Other values must be at least _AxiMaxBeats_g_ (assertion): in high-latency mode the wrapped master requests a burst only when it fits. More entries keep more read bursts in flight (see [Throughput](#throughput)) and cost flip-flops (see [Fault-Tolerant Storage](#fault-tolerant-storage)). |
 | EccPipeline_g     | natural | 0           | Register stages in the ECC decoders of both data buffers (range _0..2_), with the meaning of [olo_ft_ram_sdp](./olo_ft_ram_sdp.md): 0 = combinational decode, 1 = one register at the decoder output, 2 = one register between the syndrome and the correction plus the output register. The stages add _EccPipeline_g_ clock cycles of latency to the read data and to the write data on their way to the wrapped master; the throughput stays one beat per clock cycle. See [Clock Frequency](./olo_ft_axi_master_simple.md#clock-frequency). |
 
 ## Interfaces
@@ -93,6 +94,41 @@ it. Compared to the base entity, the only observable differences are a few clock
 fall-through latency (plus _EccPipeline_g_ per buffer) and that _Wr_Ready_/_Rd_Valid_ reflect the external
 buffer state.
 
+### Throughput
+
+In high-latency mode (_CmdRd_LowLat_ = '0') the wrapped master requests a read burst only when its internal
+read FIFO can take the whole burst, so at most _IntFifoDepth_g_ beats are requested and not yet passed to the
+read buffer. One beat per clock cycle needs these beats to cover the round trip of a burst: choose
+_IntFifoDepth_g_ at least the read latency of the memory (AR handshake to the first R beat, in clock cycles) plus
+two bursts, and _AxiMaxOpenTransactions_g_ x _AxiMaxBeats_g_ at least as large, because the open transactions bound
+the beats in flight as well. With the default of two bursts, short bursts or a long read latency reduce the read
+rate. Independently of the depth, the wrapped master issues at most one burst every 4 clock cycles, so bursts
+below 4 beats cannot reach one beat per clock cycle (see
+[olo_axi_master_simple - Throughput](../axi/olo_axi_master_simple.md#throughput)).
+
+Measured read rates, in beats per clock cycle: 32-bit bus, commands of 1 KB, _AxiMaxOpenTransactions_g_ = 8,
+_DataFifoDepth_g_ = 64, a slave that is always ready. The depth in brackets is the automatic value.
+
+| _AxiMaxBeats_g_ | Read latency | _IntFifoDepth_g_ | Read rate |
+| --------------: | -----------: | ---------------: | --------: |
+|               2 |            8 |          0 (4)   |      0.27 |
+|               2 |            8 |         16       |      0.50 |
+|               4 |            8 |          0 (8)   |      0.47 |
+|               4 |            8 |         16       |      0.94 |
+|               4 |            8 |         32       |      0.99 |
+|               8 |            8 |          0 (16)  |      0.76 |
+|               8 |            8 |         32       |      1.00 |
+|               4 |           30 |          0 (8)   |      0.20 |
+|               4 |           30 |         32       |      0.82 |
+|               4 |           30 |         64       |      0.89 |
+|              16 |           30 |          0 (32)  |      0.63 |
+|              16 |           30 |         64       |      1.00 |
+
+With 2 beats per burst the rate stays at 0.50 (one burst every 4 clock cycles); with a read latency of 30 and 4 beats
+per burst the 8 open transactions (32 beats) limit it. Writes with _AxiMaxBeats_g_ = 4 reach 0.73 with the automatic
+depth and 0.99 with _IntFifoDepth_g_ = 16. _EccPipeline_g_ does not change the rate: writes at _AxiMaxBeats_g_ = 4
+reach 0.73 with _EccPipeline_g_ = 0 and 2 alike; each stage adds one clock cycle of latency.
+
 ### Clock Frequency
 
 The ECC decode after the RAM output of each data buffer is the critical path of the entity, and it grows with
@@ -112,9 +148,10 @@ FMAX_TABLE
   other control logic. Verify in the synthesis report that no RAM primitive is inferred for them (on tools
   where "registers" is not a recognized RAM-style value, e.g. Intel Quartus which uses "logic", override
   the generic accordingly).
-- The flip-flop cost of the internal data FIFOs is `2 x AxiMaxBeats_g x (AxiDataWidth_g + AxiDataWidth_g/8)`
-  per implemented direction. Reduce `AxiMaxBeats_g` when the flip-flop budget matters; long user transfers
-  are split into multiple AXI bursts automatically.
+- The flip-flop cost of the internal data FIFOs is `D x (AxiDataWidth_g + AxiDataWidth_g/8)` for the write
+  FIFO and `D x (AxiDataWidth_g + 1)` for the read FIFO, with `D` = _IntFifoDepth_g_ (2 x _AxiMaxBeats_g_ by
+  default), before TMR. Reduce `D` when the flip-flop budget matters; long user transfers are split into
+  multiple AXI bursts automatically.
 
 ### ECC Overhead, Error Injection and Status Flags
 

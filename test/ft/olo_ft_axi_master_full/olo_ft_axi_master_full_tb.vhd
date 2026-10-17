@@ -37,7 +37,8 @@ entity olo_ft_axi_master_full_tb is
         AxiMaxBeats_g  : natural range 1 to 256   := 16;
         ImplRead_g     : boolean                  := true;
         ImplWrite_g    : boolean                  := true;
-        EccPipeline_g  : natural range 0 to 2     := 0
+        EccPipeline_g  : natural range 0 to 2     := 0;
+        IntFifoDepth_g : natural                  := 0
     );
 end entity;
 
@@ -137,6 +138,9 @@ architecture sim of olo_ft_axi_master_full_tb is
     signal Wr_ErrInj_Valid   : std_logic                                                := '0';
     signal Rd_ErrInj_BitFlip : std_logic_vector(RdCodewordWid_c - 1 downto 0)           := (others => '0');
     signal Rd_ErrInj_Valid   : std_logic                                                := '0';
+
+    -- Read bursts requested before the first read data of the slave
+    signal ArBeforeR : natural := 0;
 
     -- Clock cycles of the first beat through the master: R beat to Rd_Valid, accepted Wr beat to WValid.
     -- With EccPipeline_g = 0 they are RdLatencyPipe0_c and WrLatencyPipe0_c, every decoder stage adds one.
@@ -476,6 +480,25 @@ begin
                 end if;
 
             ---------------------------------------------------------------------------------------
+            elsif run("ReadBurstsInFlight") then
+                -- In high-latency mode the wrapped master requests a read burst only when its internal FIFO
+                -- can take it: while the slave holds back the data of the first burst, the master requests the
+                -- bursts that fit into IntFifoDepth_g words (and at most AxiMaxOpenTransactions_c bursts)
+
+                if AxiMaxBeats_c = 16 and ImplRead_g then
+                    pushCommand(net, RdCmdMaster_c, x"00006000", 64 * ByteWidth_c);
+                    push_burst_read_aligned(net, AxiSlave_c, x"6000", x"0A00", 1, 16, r_valid_delay => 2 us);
+                    push_burst_read_aligned(net, AxiSlave_c, x"6000" + 16 * ByteWidth_c, x"0A10", 1, 16);
+                    push_burst_read_aligned(net, AxiSlave_c, x"6000" + 32 * ByteWidth_c, x"0A20", 1, 16);
+                    push_burst_read_aligned(net, AxiSlave_c, x"6000" + 48 * ByteWidth_c, x"0A30", 1, 16);
+                    expectRdData(net, x"0A00", 1, 64);
+                    expectRdResponse(RespSuccess);
+                    check_equal(ArBeforeR, minimum(choose(IntFifoDepth_g = 0, 2 * AxiMaxBeats_c, IntFifoDepth_g) / AxiMaxBeats_c,
+                                                   AxiMaxOpenTransactions_c),
+                                "Read bursts requested before the first read data");
+                end if;
+
+            ---------------------------------------------------------------------------------------
             elsif run("ReadLatency") then
                 -- Every stage of the ECC decoder pipeline (EccPipeline_g) adds one clock cycle between the R beat
                 -- and Rd_Valid
@@ -751,6 +774,27 @@ begin
     Clk <= not Clk after 0.5 * Clk_Period_c;
 
     -----------------------------------------------------------------------------------------------
+    -- Read bursts requested before the first read data of the slave
+    -----------------------------------------------------------------------------------------------
+    p_inflight : process (Clk) is
+        variable RSeen_v : boolean := false;
+    begin
+        if rising_edge(Clk) then
+            if Rst = '1' then
+                RSeen_v   := false;
+                ArBeforeR <= 0;
+            else
+                if AxiSm.r_valid = '1' and AxiMs.r_ready = '1' then
+                    RSeen_v := true;
+                end if;
+                if AxiMs.ar_valid = '1' and AxiSm.ar_ready = '1' and not RSeen_v then
+                    ArBeforeR <= ArBeforeR + 1;
+                end if;
+            end if;
+        end if;
+    end process;
+
+    -----------------------------------------------------------------------------------------------
     -- Clock cycles of the first beat through the master
     -----------------------------------------------------------------------------------------------
     p_latency : process (Clk) is
@@ -838,7 +882,8 @@ begin
             UserDataWidth_g           => UserDataWidth_c,
             ImplRead_g                => ImplRead_g,
             ImplWrite_g               => ImplWrite_g,
-            EccPipeline_g             => EccPipeline_g
+            EccPipeline_g             => EccPipeline_g,
+            IntFifoDepth_g            => IntFifoDepth_g
         )
         port map (
             Clk               => Clk,
