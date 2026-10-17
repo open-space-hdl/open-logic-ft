@@ -394,3 +394,4 @@ intended for direct end-user instantiation.
 | Entity                                                           | Description                                                  |
 | ---------------------------------------------------------------- | ------------------------------------------------------------ |
 | [olo_ft_private_scrubber](./ft/olo_ft_private_scrubber.md)       | Opportunistic memory-scrub engine (FSM and user/scrub arbitration) shared by the two scrub RAM wrappers |
+| [olo_ft_private_fifo_stream](./ft/olo_ft_private_fifo_stream.md) | ECC-protected FIFO with stream interfaces only and an optional decoder pipeline, data buffer of the ft AXI masters |
