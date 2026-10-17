@@ -47,6 +47,8 @@ filesets:
       - "vhdl/olo_base_rs_decode.vhd"
       - "vhdl/olo_base_rs_encode.vhd"
       - "vhdl/olo_base_sample_hold.vhd"
+      - "vhdl/olo_base_stream_join.vhd"
+      - "vhdl/olo_base_stream_split.vhd"
       - "vhdl/olo_base_strobe_div.vhd"
       - "vhdl/olo_base_strobe_gen.vhd"
       - "vhdl/olo_base_tdm_mux.vhd"
