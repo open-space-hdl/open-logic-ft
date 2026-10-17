@@ -196,6 +196,7 @@ begin
     g_equalwidth : if OutWidth_g = InWidth_g generate
         Out_Valid <= In_Valid;
         Out_Data  <= In_Data;
+        Out_Be    <= In_Be when UseBe_g else (others => '1');
         Out_Last  <= In_Last;
         In_Ready  <= Out_Ready;
 

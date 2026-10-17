@@ -143,6 +143,7 @@ architecture sim of olo_base_wconv_n2m_tb is
     signal Out_Valid : std_logic                                 := '0';
     signal Out_Ready : std_logic                                 := '0';
     signal Out_Data  : std_logic_vector(OutWidth_g - 1 downto 0) := (others => '0');
+    signal Out_Be    : std_logic_vector(OutWidth_g / 8 - 1 downto 0);
     signal Out_Last  : std_logic                                 := '0';
 
 begin
@@ -271,6 +272,18 @@ begin
     Clk <= not Clk after 0.5 * ClkPeriod_c;
 
     -----------------------------------------------------------------------------------------------
+    -- Byte Enables (all '1' without UseBe_g)
+    -----------------------------------------------------------------------------------------------
+    p_check_be : process (Clk) is
+    begin
+        if rising_edge(Clk) then
+            if Out_Valid = '1' then
+                check_equal(Out_Be, onesVector(Out_Be'length), "Out_Be without UseBe_g");
+            end if;
+        end if;
+    end process;
+
+    -----------------------------------------------------------------------------------------------
     -- DUT
     -----------------------------------------------------------------------------------------------
     i_dut : entity olo.olo_base_wconv_n2m
@@ -288,6 +301,7 @@ begin
             Out_Valid   => Out_Valid,
             Out_Ready   => Out_Ready,
             Out_Data    => Out_Data,
+            Out_Be      => Out_Be,
             Out_Last    => Out_Last
         );
 
