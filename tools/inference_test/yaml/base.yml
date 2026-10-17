@@ -306,6 +306,27 @@ entities:
           RootStep_g: 11
           InterleaveDepth_g: 5
           DualBasis_g: 117
+  # olo_base_stream_join
+  - entity_name: "olo_base_stream_join"
+    configurations:
+      - name: "32bit"
+        generics:
+          Width_g: 32
+        in_reduce:
+          In_Data: 32
+        out_reduce:
+          Out_Data: 32
+  # olo_base_stream_split
+  - entity_name: "olo_base_stream_split"
+    configurations:
+      - name: "32bit-4095bytes"
+        generics:
+          Width_g: 32
+          MaxSegSize_g: 4095
+        in_reduce:
+          In_Data: 32
+        out_reduce:
+          Out_Data: 32
   # olo_base_strobe_div
   - entity_name: "olo_base_strobe_div"
     configurations:

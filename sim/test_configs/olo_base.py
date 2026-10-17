@@ -193,6 +193,22 @@ def add_configs(olo_tb):
     named_config(tb, {'Width_g': 12, 'ChunkBeats_g': 4, 'RandomStall_g': True})
     named_config(tb, {'Width_g': 128, 'ChunkBeats_g': 2, 'RandomStall_g': True})
 
+    ### olo_base_stream_join ###
+    stream_join_tb = 'olo_base_stream_join_tb'
+    tb = olo_tb.test_bench(stream_join_tb)
+    # One byte lane, a lane count that is not a power of two, and up to the largest width
+    for Width in [8, 24, 32, 64, 512, 1024]:
+        named_config(tb, {'Width_g': Width})
+
+    ### olo_base_stream_split ###
+    stream_split_tb = 'olo_base_stream_split_tb'
+    tb = olo_tb.test_bench(stream_split_tb)
+    for Width in [8, 24, 32, 64, 512, 1024]:
+        named_config(tb, {'Width_g': Width})
+    # Smallest segment size, segments shorter than a beat, the largest segment size of a 26-bit length field
+    for Width, MaxSegSize in [(32, 1), (32, 5), (64, 2**26-1), (1024, 2**26-1)]:
+        named_config(tb, {'Width_g': Width, 'MaxSegSize_g': MaxSegSize})
+
     ### olo_base_pl_stage ###
     pl_tb = 'olo_base_pl_stage_tb'
     tb = olo_tb.test_bench(pl_tb)
