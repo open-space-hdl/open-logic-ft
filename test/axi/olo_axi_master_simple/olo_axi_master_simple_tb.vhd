@@ -39,6 +39,8 @@ entity olo_axi_master_simple_tb is
         ImplWrite_g                 : boolean                 := true;
         RamBehavior_g               : string                  := "RBW";
         UserTransactionSizeBits_g   : natural range 1 to 16   := 10;
+        -- Direction of the first commands after the power-up (test FirstCommands)
+        ReadFirst_g                 : boolean                 := false;
         runner_cfg                  : string
     );
 end entity;
@@ -341,6 +343,8 @@ begin
     test_runner_watchdog(runner, 1 ms);
 
     p_control : process is
+        variable Undefined_v : std_logic_vector(3 downto 0);
+        variable Reads_v     : boolean;
     begin
         test_runner_setup(runner, runner_cfg);
 
@@ -353,6 +357,66 @@ begin
             wait until rising_edge(Clk);
             Rst <= '0';
             wait until rising_edge(Clk);
+
+            -- *** First commands after the power-up ***
+            -- Only the first test of a simulation finds the registers of the master as after the power-up, so this
+            -- test comes first. ReadFirst_g selects the direction of the first commands. The configurations
+            -- ieee_warnings-* enable the IEEE warnings, and their post check fails on a numeric_std metavalue warning
+            -- after the marker: no register may be converted while it is undefined (until the first command of its
+            -- direction). The metavalue of Undefined_v before the marker shows that the warnings are enabled.
+            -- Commands back to back: a single beat, a burst over a 4 KB boundary, a FIXED burst and the largest
+            -- transfer (low latency: it does not fit into the FIFO).
+            if run("FirstCommands") then
+                check_equal(to_integer(unsigned(Undefined_v)), 0, "IEEE warning control");
+                report "OLO_IEEE_CHECK_START";
+                wait for 1 us;
+
+                for Phase in 0 to 1 loop
+                    Reads_v := (Phase = 1) xor ReadFirst_g;
+                    if Reads_v and ImplRead_g then
+                        push_single_read (net, AxiSlave_c, X"2080", X"4141");
+                        pushCommand(net, RdCmdMaster_c, X"2080", 1);
+                        expectRdData(net, X"4141");
+                        pushAxiRead(net, X"2000"-2*AxiDataWidth_g/8, X"09", 2);
+                        pushAxiRead(net, X"2000", X"0B", 6);
+                        pushCommand(net, RdCmdMaster_c, X"2000"-2*AxiDataWidth_g/8, 8);
+                        expectRdData(net, X"09", 1, 8);
+                        pushAxiRead(net, X"0300", X"6B00", FixedSizes_c(2), fixed => true);
+                        pushCommand(net, RdCmdMaster_c, X"0300", FixedSizes_c(2), CmdFixed => '1');
+                        expectRdData(net, X"6B00", 1, FixedSizes_c(2));
+                        pushAxiRead(net, X"0200", X"10EF", MaxTfBeats_c);
+                        pushCommand(net, RdCmdMaster_c, X"0200", MaxTfBeats_c, CmdLowLat => '1');
+                        expectRdData(net, X"10EF", 1, MaxTfBeats_c);
+
+                        for i in 0 to 3 loop
+                            expectRdResponse(RespSuccess);
+                        end loop;
+
+                        wait for 1 us;
+                    elsif (not Reads_v) and ImplWrite_g then
+                        expect_single_write (net, AxiSlave_c, X"1080", X"3131");
+                        pushCommand(net, WrCmdMaster_c, X"1080", 1);
+                        pushWrData(net, X"3131");
+                        expectAxiWrite(net, X"1000"-2*AxiDataWidth_g/8, X"1234", 2);
+                        expectAxiWrite(net, X"1000", X"1236", 6);
+                        pushCommand(net, WrCmdMaster_c, X"1000"-2*AxiDataWidth_g/8, 8);
+                        pushWrData(net, X"1234", 1, 8);
+                        expectAxiWrite(net, X"0300", X"5A00", FixedSizes_c(2), fixed => true);
+                        pushCommand(net, WrCmdMaster_c, X"0300", FixedSizes_c(2), CmdFixed => '1');
+                        pushWrData(net, X"5A00", 1, FixedSizes_c(2));
+                        expectAxiWrite(net, X"0100", X"7100", MaxTfBeats_c);
+                        pushCommand(net, WrCmdMaster_c, X"0100", MaxTfBeats_c, CmdLowLat => '1');
+                        pushWrData(net, X"7100", 1, MaxTfBeats_c);
+
+                        for i in 0 to 3 loop
+                            expectWrResponse(RespSuccess);
+                        end loop;
+
+                        wait for 1 us;
+                    end if;
+                end loop;
+
+            end if;
 
             if run("ResetValues") then
                 if ImplRead_g then
