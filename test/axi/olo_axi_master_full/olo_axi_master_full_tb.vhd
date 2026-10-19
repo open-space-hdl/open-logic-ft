@@ -39,6 +39,8 @@ entity olo_axi_master_full_tb is
         ImplWrite_g                 : boolean                 := true;
         RamBehavior_g               : string                  := "RBW";
         UserTransactionSizeBits_g   : natural                 := 10;
+        -- Direction of the first commands after the power-up (test FirstCommands)
+        ReadFirst_g                 : boolean                 := false;
         runner_cfg                  : string
     );
 end entity;
@@ -91,6 +93,10 @@ architecture sim of olo_axi_master_full_tb is
     constant FixedMaxBeats_c : natural                := minimum(AxiMaxBeats_g, 16);
     constant FixedLong_c     : natural                := minimum(100*AxiBytes_c+3, 2**UserTransactionSizeBits_g-1);
     constant FixedSizes_c    : integer_vector(0 to 3) := (1, AxiBytes_c, AxiBytes_c+1, FixedLong_c);
+
+    -- First commands after the power-up: a single byte, an unaligned burst, a FIXED burst and the largest command
+    -- (up to 10 size bits)
+    constant FirstCmds_c : natural := choose(UserTransactionSizeBits_g <= 10, 4, 3);
 
     -----------------------------------------------------------------------------------------------
     -- TB Defnitions
@@ -469,6 +475,10 @@ begin
         variable Data_v      : unsigned(UserDataWidth_g-1 downto 0);
         variable UserBeats_v : natural;
         variable DataBytes_v : natural;
+        variable Undefined_v : std_logic_vector(3 downto 0);
+        variable Reads_v     : boolean;
+        variable Fixed_v     : std_logic;
+        variable LowLat_v    : std_logic;
     begin
         test_runner_setup(runner, runner_cfg);
 
@@ -481,6 +491,69 @@ begin
             wait until rising_edge(Clk);
             Rst <= '0';
             wait until rising_edge(Clk);
+
+            -- *** First commands after the power-up ***
+            -- Only the first test of a simulation finds the registers of the master as after the power-up, so this
+            -- test comes first. ReadFirst_g selects the direction of the first commands. The configurations
+            -- ieee_warnings-* enable the IEEE warnings, and their post check fails on a numeric_std metavalue warning
+            -- after the marker: no register may be converted while it is undefined (until the first command of its
+            -- direction). The metavalue of Undefined_v before the marker shows that the warnings are enabled.
+            if run("FirstCommands") then
+                check_equal(to_integer(unsigned(Undefined_v)), 0, "IEEE warning control");
+                report "OLO_IEEE_CHECK_START";
+                wait for 1 us;
+
+                for Phase in 0 to 1 loop
+                    Reads_v := (Phase = 1) xor ReadFirst_g;
+                    if (Reads_v and ImplRead_g) or ((not Reads_v) and ImplWrite_g) then
+
+                        -- Commands back to back
+                        for Cmd in 0 to FirstCmds_c-1 loop
+                            Fixed_v  := choose(Cmd = 2, '1', '0');
+                            LowLat_v := choose(Cmd = 3, '1', '0'); -- the largest command does not fit into the FIFO
+
+                            case Cmd is
+                                when 0 =>
+                                    Addr_v      := resize(x"0801", AxiAddrWidth_g);
+                                    DataBytes_v := 1;
+                                when 1 =>
+                                    Addr_v      := resize(x"0903", AxiAddrWidth_g);
+                                    DataBytes_v := 3*AxiBytes_c+1;
+                                when 2 =>
+                                    Addr_v      := resize(x"0A05", AxiAddrWidth_g);
+                                    DataBytes_v := AxiBytes_c+1;
+                                when others =>
+                                    Addr_v      := resize(x"2000", AxiAddrWidth_g);
+                                    DataBytes_v := 2**UserTransactionSizeBits_g-1;
+                            end case;
+
+                            Data_v      := resize(x"10"+16*Cmd+64*Phase, UserDataWidth_g);
+                            UserBeats_v := (DataBytes_v+UserBytes_c-1)/UserBytes_c;
+                            if Reads_v then
+                                pushAxiRead(net, Addr_v, Data_v, DataBytes_v, fixed => Fixed_v = '1');
+                                pushCommand(net, RdCmdMaster_c, Addr_v, DataBytes_v, CmdLowLat => LowLat_v, CmdFixed => Fixed_v);
+                                expectRdData(net, Data_v, beats => UserBeats_v, lastBytes => DataBytes_v mod UserBytes_c);
+                            else
+                                expectAxiWrite(net, Addr_v, Data_v, DataBytes_v, fixed => Fixed_v = '1');
+                                pushCommand(net, WrCmdMaster_c, Addr_v, DataBytes_v, CmdLowLat => LowLat_v, CmdFixed => Fixed_v);
+                                pushWrData(net, Data_v, beats => UserBeats_v);
+                            end if;
+                        end loop;
+
+                        for Cmd in 0 to FirstCmds_c-1 loop
+                            if Reads_v then
+                                expectRdResponse(RespSuccess);
+                            else
+                                expectWrResponse(RespSuccess);
+                            end if;
+                        end loop;
+
+                        wait for 1 us;
+
+                    end if;
+                end loop;
+
+            end if;
 
             if run("ResetValues") then
                 if ImplRead_g then
@@ -1290,8 +1363,10 @@ begin
             TLast  => Rd_Last
         );
 
+    -- Valid takes the same delta cycle as the command fields (the stream master drives 'X' while not valid)
     b_wr_cmd : block is
-        signal TDataLocal : std_logic_vector(CmdFixed_c downto 0);
+        signal TValidLocal : std_logic;
+        signal TDataLocal  : std_logic_vector(CmdFixed_c downto 0);
     begin
 
         vc_wr_cmd : entity vunit_lib.axi_stream_master
@@ -1300,11 +1375,12 @@ begin
             )
             port map (
                 AClk   => Clk,
-                TValid => CmdWr_Valid,
+                TValid => TValidLocal,
                 TReady => CmdWr_Ready,
                 TData  => TDataLocal
             );
 
+        CmdWr_Valid  <= TValidLocal;
         CmdWr_Addr   <= TDataLocal(CmdAddrRange_c);
         CmdWr_Size   <= TDataLocal(CmdSizeRange_c);
         CmdWr_LowLat <= TDataLocal(CmdLowLat_c);
@@ -1312,7 +1388,8 @@ begin
     end block;
 
     b_rd_cmd : block is
-        signal TDataLocal : std_logic_vector(CmdFixed_c downto 0);
+        signal TValidLocal : std_logic;
+        signal TDataLocal  : std_logic_vector(CmdFixed_c downto 0);
     begin
 
         vc_rd_cmd : entity vunit_lib.axi_stream_master
@@ -1321,11 +1398,12 @@ begin
             )
             port map (
                 Aclk   => Clk,
-                TValid => CmdRd_Valid,
+                TValid => TValidLocal,
                 TReady => CmdRd_Ready,
                 TData  => TDataLocal
             );
 
+        CmdRd_Valid  <= TValidLocal;
         CmdRd_Addr   <= TDataLocal(CmdAddrRange_c);
         CmdRd_Size   <= TDataLocal(CmdSizeRange_c);
         CmdRd_LowLat <= TDataLocal(CmdLowLat_c);

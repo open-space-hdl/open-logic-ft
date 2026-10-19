@@ -180,6 +180,9 @@ except ValueError as e:
           f"This is expected on older VUnit installations; upgrade VUnit to enable "
           f"nvc IEEE-warning suppression.")
 vu.set_sim_option("disable_ieee_warnings", True)
+# Configurations with the IEEE warnings enabled (GHDL only): added after the suppression above, which sets its options
+# in the configurations that exist at this point
+olo_axi.add_ieee_configs(olo_tb)
 # Disable optimization - it's faster for Open Logic to run without
 vu.set_sim_option("modelsim.vopt_flags", ["-O0"])
 # Would be better than above option but does not work on AWS. Enable later if it works on AWS.

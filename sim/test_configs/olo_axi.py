@@ -6,7 +6,7 @@
 # ---------------------------------------------------------------------------------------------------
 # Imports
 # ---------------------------------------------------------------------------------------------------
-from .utils import named_config
+from .utils import named_config, ieee_warning_configs
 
 # ---------------------------------------------------------------------------------------------------
 # Functionality
@@ -117,3 +117,11 @@ def add_configs(olo_tb):
     named_config(tb, {'Ports_g': 5, 'PortAddrWidth_g': 12, 'AxiAddrWidth_g': 15})
     named_config(tb, {'Ports_g': 2, 'AxiDataWidth_g': 64, 'PortAddrWidth_g': 4})
     named_config(tb, {'Ports_g': 16, 'AxiDataWidth_g': 16, 'PortAddrWidth_g': 10, 'AxiAddrWidth_g': 14})
+
+def add_ieee_configs(olo_tb):
+    """
+    Add the IEEE warning check configurations of the AXI masters (GHDL only, see ieee_warning_configs)
+    :param olo_tb: Testbench library
+    """
+    for tb_name in ['olo_axi_master_simple_tb', 'olo_axi_master_full_tb']:
+        ieee_warning_configs(olo_tb.test_bench(tb_name))
