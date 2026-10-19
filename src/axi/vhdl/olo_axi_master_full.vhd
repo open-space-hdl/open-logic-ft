@@ -671,6 +671,8 @@ begin
                     r.RdStart        <= '0';
                     r.RdDataEna      <= '0';
                     r.RdAlignByteVld <= (others => '0');
+                    -- Converted to an integer in every cycle, loaded at the start of each read
+                    r.RdAlignLowIdx <= (others => '0');
                 end if;
             end if;
         end if;
