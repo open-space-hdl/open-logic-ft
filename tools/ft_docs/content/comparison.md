@@ -1,6 +1,6 @@
 # Comparison with Open Logic 4.7.0
 
-This page compares the tag `4.7.0-ft.9` of Open Logic FT with the release 4.7.0 of
+This page compares the tag `4.7.0-ft.10` of Open Logic FT with the release 4.7.0 of
 [Open Logic](https://github.com/open-logic/open-logic), entity by entity. The tag is based on the upstream branch
 `develop` after the release; its VHDL sources are identical with 4.7.0, so every difference listed here comes from the
 fork.
@@ -16,7 +16,7 @@ stands in Open Logic:
 
 ## ft area
 
-| Entity | 4.7.0 | 4.7.0-ft.9 | Upstream |
+| Entity | 4.7.0 | 4.7.0-ft.10 | Upstream |
 | --- | --- | --- | --- |
 | [olo_ft_pkg_ecc](doc/ft/olo_ft_pkg_ecc.md) | ✓ | ✓ | Merged ([#294](https://github.com/open-logic/open-logic/pull/294)) |
 | [olo_ft_ecc_encode](doc/ft/olo_ft_ecc_encode.md), [olo_ft_ecc_decode](doc/ft/olo_ft_ecc_decode.md) | ✓ | ✓ | Merged ([#294](https://github.com/open-logic/open-logic/pull/294)) |
@@ -31,7 +31,7 @@ stands in Open Logic:
 
 ## base, axi and intf: additional entities
 
-| Entity | 4.7.0 | 4.7.0-ft.9 | Upstream |
+| Entity | 4.7.0 | 4.7.0-ft.10 | Upstream |
 | --- | --- | --- | --- |
 | [olo_base_chunker](doc/base/olo_base_chunker.md) | – | ✓ Splits stream packets into chunks of a fixed number of beats, marks the end of the input packet | Not yet proposed |
 | [olo_base_stream_join](doc/base/olo_base_stream_join.md) | – | ✓ Packs the valid bytes of a stream: input beats may be partial, every output packet is without gaps | Not yet proposed |
@@ -56,7 +56,7 @@ The fork changes these entities in five ways:
   (`Wr_ErrorResp`, `Rd_ErrorResp`) and, in `olo_axi_master_full`, consecutive commands without gaps.
 - **Bug fixes:** fixes of Open Logic 4.7.0 that are not yet merged upstream.
 
-| Entity | 4.7.0 | 4.7.0-ft.9 | Upstream |
+| Entity | 4.7.0 | 4.7.0-ft.10 | Upstream |
 | --- | --- | --- | --- |
 | [olo_base_cc_bits](doc/base/olo_base_cc_bits.md), [olo_base_cc_reset](doc/base/olo_base_cc_reset.md), [olo_base_reset_gen](doc/base/olo_base_reset_gen.md), [olo_intf_sync](doc/intf/olo_intf_sync.md) | ✓ | + `SyncTmr_g`, synchronizer attribute ¹ | Attribute: Proposed ([#360](https://github.com/open-logic/open-logic/issues/360)); `SyncTmr_g`: Not yet proposed |
 | [olo_base_cc_pulse](doc/base/olo_base_cc_pulse.md), [olo_base_cc_simple](doc/base/olo_base_cc_simple.md), [olo_base_cc_status](doc/base/olo_base_cc_status.md), [olo_base_cc_handshake](doc/base/olo_base_cc_handshake.md), [olo_base_fifo_async](doc/base/olo_base_fifo_async.md) | ✓ | + `SyncTmr_g` | Not yet proposed |
@@ -75,7 +75,7 @@ entities.
 
 All new generics and input ports have defaults (`SyncTmr_g = false`, `SyncStages_g = 2`, `RamStyle_g = "auto"`,
 `CmdWr_Fixed = '0'`, `CmdRd_Fixed = '0'`), and no existing port or generic changed: code written for Open Logic 4.7.0
-compiles against 4.7.0-ft.9 without changes.
+compiles against 4.7.0-ft.10 without changes.
 Test benches built on the AXI slave verification component `olo_test_axi_slave_vc` (`test/tb`) need one change:
 `push_r` and `push_r_arbitrary` take `error_code` instead of `resp`, and the new `error_beat` selects the beat that
 carries the error (Proposed, [#366](https://github.com/open-logic/open-logic/pull/366)). `expect_burst_write_aligned`
@@ -95,7 +95,7 @@ multiple of 8 bits, which the VUnit stream slave does not (Not yet proposed).
 
 ## Summary
 
-Open Logic 4.7.0 has 94 public entities, 4.7.0-ft.9 has 108. Seven of the 14 additional entities are in the ft area;
+Open Logic 4.7.0 has 94 public entities, 4.7.0-ft.10 has 108. Seven of the 14 additional entities are in the ft area;
 the other seven are `olo_base_chunker`, `olo_base_stream_join`, `olo_base_stream_split`, `olo_base_rs_encode`,
 `olo_base_rs_decode`, `olo_axi_lite_decoder` and `olo_intf_can`, with the new packages `olo_base_pkg_gf` and
 `olo_intf_pkg_can`.
