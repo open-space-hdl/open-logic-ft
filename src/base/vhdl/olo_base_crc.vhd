@@ -111,7 +111,9 @@ begin
     begin
         if rising_edge(Clk) then
 
-            if (BeMode_c and In_Last = '1') then
+            -- In_Last and In_Be are only defined for a beat (AXI4-Stream), so the byte-enable window is evaluated
+            -- for an accepted beat only. Input_v and InputHigh_v are used in the branch of an accepted beat only.
+            if (BeMode_c and In_Last = '1' and In_Valid = '1' and In_Ready_I = '1') then
                 BePlus_v := std_logic_vector(unsigned(In_Be) + 1);
                 -- synthesis translate_off
                 assert (In_Be and BePlus_v) = zerosVector(In_Be'length)
