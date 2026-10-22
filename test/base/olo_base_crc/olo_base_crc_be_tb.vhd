@@ -163,6 +163,21 @@ architecture sim of olo_base_crc_be_tb is
 
     constant CrcSettings_c : CrcSettings_r := getCrcSettings(CrcName_g);
 
+    -- Byte enables that violate the Trailing-Only convention: a gap above the LSB, or the LSB clear for two bytes
+    function nonContiguousBe return std_logic_vector is
+        variable Be_v : std_logic_vector(DataWidth_g/8 - 1 downto 0) := (others => '0');
+    begin
+        if Be_v'length >= 3 then
+            Be_v(0) := '1';
+            Be_v(2) := '1';
+        else
+            Be_v(1) := '1';
+        end if;
+        return Be_v;
+    end function;
+
+    constant BeNonContiguous_c : std_logic_vector(DataWidth_g/8 - 1 downto 0) := nonContiguousBe;
+
     -- *** Verification Components ***
     constant AxisMaster_c : axi_stream_master_t := new_axi_stream_master (
             data_length  => DataWidth_g,
@@ -174,6 +189,27 @@ architecture sim of olo_base_crc_be_tb is
             data_length  => CrcSettings_c.polynomial'length,
             stall_config => new_stall_config(choose(RandomStall_g, 1.0, 0.0), 20, 50)
         );
+
+    -----------------------------------------------------------------------------------------------
+    -- Procedures
+    -----------------------------------------------------------------------------------------------
+    -- Packet 53AF in the beat layout of the configuration
+    procedure pushTwoBytes (signal net : inout network_t) is
+    begin
+        if (DataWidth_g = 16 and ByteOrder_g = "MSB_FIRST") then
+            push_axi_stream(net, AxisMaster_c, x"53AF", tuser => "11", tlast => '1');
+        elsif (DataWidth_g = 16 and ByteOrder_g = "LSB_FIRST") then
+            push_axi_stream(net, AxisMaster_c, x"AF53", tuser => "11", tlast => '1');
+        elsif (DataWidth_g = 24 and ByteOrder_g = "MSB_FIRST") then
+            push_axi_stream(net, AxisMaster_c, x"4053AF", tuser => "011", tlast => '1');
+        elsif (DataWidth_g = 24 and ByteOrder_g = "LSB_FIRST") then
+            push_axi_stream(net, AxisMaster_c, x"1DAF53", tuser => "011", tlast => '1');
+        elsif (DataWidth_g = 32 and ByteOrder_g = "MSB_FIRST") then
+            push_axi_stream(net, AxisMaster_c, x"FEB453AF", tuser => "0011", tlast => '1');
+        elsif (DataWidth_g = 32 and ByteOrder_g = "LSB_FIRST") then
+            push_axi_stream(net, AxisMaster_c, x"DCC4AF53", tuser => "0011", tlast => '1');
+        end if;
+    end procedure;
 
     -----------------------------------------------------------------------------------------------
     -- Interface Signals
@@ -190,6 +226,12 @@ architecture sim of olo_base_crc_be_tb is
     signal Out_Ready : std_logic;
     signal Out_Valid : std_logic;
     signal Out_Crc   : std_logic_vector(CrcSettings_c.polynomial'length - 1 downto 0);
+
+    -- In_Last and In_Be of the stimuli VC, and the values driven instead while In_Valid is '0'
+    signal Vc_Last   : std_logic;
+    signal Vc_Be     : std_logic_vector(DataWidth_g/8 - 1 downto 0);
+    signal IdleDrive : boolean                                      := false;
+    signal IdleBe    : std_logic_vector(DataWidth_g/8 - 1 downto 0) := (others => '0');
 
 begin
 
@@ -236,22 +278,37 @@ begin
             elsif run("Test-TwoBytes") then
                 ----------------------------------------------------------------
                 -- 53AF
-                if (DataWidth_g = 16 and ByteOrder_g = "MSB_FIRST") then
-                    push_axi_stream(net, AxisMaster_c, x"53AF", tuser => "11", tlast => '1');
-                elsif (DataWidth_g = 16 and ByteOrder_g = "LSB_FIRST") then
-                    push_axi_stream(net, AxisMaster_c, x"AF53", tuser => "11", tlast => '1');
-                elsif (DataWidth_g = 24 and ByteOrder_g = "MSB_FIRST") then
-                    push_axi_stream(net, AxisMaster_c, x"4053AF", tuser => "011", tlast => '1');
-                elsif (DataWidth_g = 24 and ByteOrder_g = "LSB_FIRST") then
-                    push_axi_stream(net, AxisMaster_c, x"1DAF53", tuser => "011", tlast => '1');
-                elsif (DataWidth_g = 32 and ByteOrder_g = "MSB_FIRST") then
-                    push_axi_stream(net, AxisMaster_c, x"FEB453AF", tuser => "0011", tlast => '1');
-                elsif (DataWidth_g = 32 and ByteOrder_g = "LSB_FIRST") then
-                    push_axi_stream(net, AxisMaster_c, x"DCC4AF53", tuser => "0011", tlast => '1');
-                end if;
+                pushTwoBytes(net);
 
                 ExpectedCrc_v := getExpectedCrc("53AF", CrcSettings_c.name);
                 check_axi_stream(net, AxisSlave_c, ExpectedCrc_v, msg => "CRC(53AF)");
+
+            elsif run("Test-IdleLastBe") then
+                -- In_Last and In_Be take any value while In_Valid is '0' (AXI4-Stream): In_Last = '1' with
+                -- no byte enabled, then with non-contiguous byte enables, also in the cycles between two packets
+                IdleDrive <= true;
+                IdleBe    <= (others => '0');
+
+                for i in 0 to 9 loop
+                    wait until rising_edge(Clk);
+                end loop;
+
+                IdleBe <= BeNonContiguous_c;
+
+                for i in 0 to 9 loop
+                    wait until rising_edge(Clk);
+                end loop;
+
+                pushTwoBytes(net);
+                pushTwoBytes(net);
+
+                ExpectedCrc_v := getExpectedCrc("53AF", CrcSettings_c.name);
+                check_axi_stream(net, AxisSlave_c, ExpectedCrc_v, msg => "CRC(53AF) after idle cycles");
+                check_axi_stream(net, AxisSlave_c, ExpectedCrc_v, msg => "CRC(53AF) second packet");
+                wait_until_idle(net, as_sync(AxisMaster_c));
+                wait_until_idle(net, as_sync(AxisSlave_c));
+                -- Back to the values of the VC for the next test
+                IdleDrive <= false;
 
             elsif run("Test-ThreeBytes") then
                 ----------------------------------------------------------------
@@ -317,6 +374,12 @@ begin
     Clk <= not Clk after 0.5 * ClkPeriod_c;
 
     -----------------------------------------------------------------------------------------------
+    -- Values of In_Last and In_Be in the cycles without a beat
+    -----------------------------------------------------------------------------------------------
+    In_Last <= '1' when IdleDrive and In_Valid = '0' else Vc_Last;
+    In_Be   <= IdleBe when IdleDrive and In_Valid = '0' else Vc_Be;
+
+    -----------------------------------------------------------------------------------------------
     -- DUT
     -----------------------------------------------------------------------------------------------
     i_dut : entity olo.olo_base_crc
@@ -356,8 +419,8 @@ begin
             TValid => In_Valid,
             TReady => In_Ready,
             TData  => In_Data,
-            TUser  => In_Be,
-            TLast  => In_Last
+            TUser  => Vc_Be,
+            TLast  => Vc_Last
         );
 
     vc_response : entity vunit_lib.axi_stream_slave
