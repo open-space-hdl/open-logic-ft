@@ -39,11 +39,12 @@ extra:
       - Contributing.md
       - CODE_OF_CONDUCT.md
       - doc/**
-    # Logos and status badges of the GitHub view (the badges are images served by third parties)
+    # Logos and status badges of the GitHub view (the badges are images served by third parties), also indented in a
+    # list item and with the link in angle brackets
     strip:
-      - '^<img src="[^"]*Logo\.png" alt="Logo"'
-      - '^!\[[^\]]*\]\(https://(img\.shields\.io|storage\.googleapis\.com|github\.com/[^)]*/badge\.svg)'
-      - '^\[!\[[^\]]*\]\(https://(img\.shields\.io|badges\.gitter\.im)'
+      - '^\s*<img src="[^"]*Logo\.png" alt="Logo"'
+      - '^\s*!\[[^\]]*\]\(<?https://(img\.shields\.io|storage\.googleapis\.com|github\.com/[^)]*/badge\.svg)'
+      - '^\s*\[!\[[^\]]*\]\(<?https://(img\.shields\.io|badges\.gitter\.im)'
 
 nav:
   - Home: index.md
