@@ -77,9 +77,8 @@ Every push to `fault-tolerant` runs the workflow `FT-Backlog-Check`: GHDL simula
 full regression), VSG linting, markdownlint and the check that every ft entity is part of the synthesis inference
 test. The SEU testbenches of the synchronizers force upsets into the registers of single chains:
 with `SyncTmr_g = true` the voted output is not affected, with a single synchronizer the upset is visible. The tag
-`4.7.0-ft.11` passed the full regression of the library (11321 tests) with GHDL. From `4.7.0-ft.7` to `4.7.0-ft.11`,
-the testbenches of the entities changed since the previous tag also pass in QuestaSim, with and without code
-coverage; the `olo_base_crc` fix of `4.7.0-ft.11` is verified with GHDL, QuestaSim follows.
+`4.7.0-ft.11` passed the full regression of the library (11321 tests) with GHDL. From `4.7.0-ft.7` on, the testbenches
+of the entities changed since the previous tag also pass in QuestaSim, with and without code coverage.
 
 ## Technology readiness
 
