@@ -110,6 +110,17 @@ architecture sim of olo_ft_reset_ctrl_axi_tb is
     signal BReadyForce : std_logic := '0';
     signal BReady      : std_logic;
 
+    -- AW and W channels of the DUT: from the VC, or driven directly by the bench with key writes to
+    -- CTRL (DirMode = '1'), for long series of commands without VC messages
+    signal DirMode    : std_logic := '0';
+    signal DirAwValid : std_logic := '0';
+    signal DirWValid  : std_logic := '0';
+    signal AwAddr     : std_logic_vector(AxiAddrWidth_g - 1 downto 0);
+    signal AwValid    : std_logic;
+    signal WData      : std_logic_vector(31 downto 0);
+    signal WStrb      : std_logic_vector(3 downto 0);
+    signal WValid     : std_logic;
+
     -- Statistics of the monitor
     signal MonRises   : natural := 0; -- rising edges of RstOut
     signal MonLastLen : natural := 0; -- length of the last completed RstOut pulse in cycles
@@ -127,6 +138,12 @@ begin
     -----------------------------------------------------------------------------------------------
     BReady <= AxiMs.b_ready or BReadyForce;
 
+    AwAddr  <= toUslv(CtrlAddr_c, AxiAddrWidth_g) when DirMode = '1' else AxiMs.aw_addr;
+    AwValid <= DirAwValid when DirMode = '1' else AxiMs.aw_valid;
+    WData   <= Key_c when DirMode = '1' else AxiMs.w_data;
+    WStrb   <= "1111" when DirMode = '1' else AxiMs.w_strb;
+    WValid  <= DirWValid when DirMode = '1' else AxiMs.w_valid;
+
     i_dut : entity olo.olo_ft_reset_ctrl_axi
         generic map (
             RstPulseCycles_g => RstPulseCycles_g,
@@ -139,12 +156,12 @@ begin
             S_AxiLite_ArAddr  => AxiMs.ar_addr,
             S_AxiLite_ArValid => AxiMs.ar_valid,
             S_AxiLite_ArReady => AxiSm.ar_ready,
-            S_AxiLite_AwAddr  => AxiMs.aw_addr,
-            S_AxiLite_AwValid => AxiMs.aw_valid,
+            S_AxiLite_AwAddr  => AwAddr,
+            S_AxiLite_AwValid => AwValid,
             S_AxiLite_AwReady => AxiSm.aw_ready,
-            S_AxiLite_WData   => AxiMs.w_data,
-            S_AxiLite_WStrb   => AxiMs.w_strb,
-            S_AxiLite_WValid  => AxiMs.w_valid,
+            S_AxiLite_WData   => WData,
+            S_AxiLite_WStrb   => WStrb,
+            S_AxiLite_WValid  => WValid,
             S_AxiLite_WReady  => AxiSm.w_ready,
             S_AxiLite_BResp   => AxiSm.b_resp,
             S_AxiLite_BValid  => AxiSm.b_valid,
@@ -186,12 +203,12 @@ begin
         wait until rising_edge(Clk);
 
         -- Address and data of the current write transaction
-        if (AxiMs.aw_valid = '1') and (AxiSm.aw_ready = '1') then
-            AwAddr_v := AxiMs.aw_addr;
+        if (AwValid = '1') and (AxiSm.aw_ready = '1') then
+            AwAddr_v := AwAddr;
         end if;
-        if (AxiMs.w_valid = '1') and (AxiSm.w_ready = '1') then
-            WData_v := AxiMs.w_data;
-            WStrb_v := AxiMs.w_strb;
+        if (WValid = '1') and (AxiSm.w_ready = '1') then
+            WData_v := WData;
+            WStrb_v := WStrb;
         end if;
 
         if (AxiSm.b_valid = '1') and (BReady = '1') then
@@ -290,6 +307,25 @@ begin
             Total_v := MonBResp + 1;
             pushWriteNoResp(addr, data);
             waitBResp(Total_v);
+        end procedure;
+
+        -- Key writes to CTRL driven directly on the AW and W channels, one write every four cycles,
+        -- without VC messages; the write responses need BReadyForce = '1'
+        procedure writeKeyDirect (
+            count : natural) is
+        begin
+            DirMode <= '1';
+
+            for i in 1 to count loop
+                DirAwValid <= '1';
+                DirWValid  <= '1';
+                wait until rising_edge(Clk) and AxiSm.aw_ready = '1';
+                DirAwValid <= '0';
+                wait until rising_edge(Clk) and AxiSm.w_ready = '1';
+                DirWValid  <= '0';
+            end loop;
+
+            DirMode <= '0';
         end procedure;
 
         -- Waits until BValid is '1' and places the write response handshake on the next edge
@@ -536,17 +572,11 @@ begin
                 checkReg(StatusAddr_c, statusWord(1, '0'));
 
             elsif run("CountSaturation") then
-                -- RC-06: COUNT saturates at 0xFFFF
+                -- RC-06: COUNT saturates at 0xFFFF. The first 65534 commands are driven directly on
+                -- the AXI channels: through the VC they would be 131068 queued messages.
                 BReadyForce <= '1';
                 Cmds_v      := MonBResp + 2**16 - 2;
-
-                for i in 1 to 2**16 - 2 loop
-                    pushWriteNoResp(CtrlAddr_c, Key_c);
-                    if i mod 256 = 0 then
-                        wait_until_idle(net, as_sync(AxiMaster_c));
-                    end if;
-                end loop;
-
+                writeKeyDirect(2**16 - 2);
                 waitBResp(Cmds_v);
                 waitPulseEnd;
                 checkReg(StatusAddr_c, statusWord(2**16 - 2, '0'));
