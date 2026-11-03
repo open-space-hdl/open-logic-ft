@@ -80,6 +80,7 @@ src/ft/vhdl/olo_ft_axi_master_simple.vhd
 src/axi/vhdl/olo_axi_master_full.vhd
 src/ft/vhdl/olo_ft_axi_master_full.vhd
 src/axi/vhdl/olo_axi_lite_slave.vhd
+src/ft/vhdl/olo_ft_reset_ctrl_axi.vhd
 src/ft/vhdl/olo_ft_ecc_monitor_axi.vhd
 src/axi/vhdl/olo_axi_lite_decoder.vhd
 3rdParty/en_cl_fix/hdl/en_cl_fix_private_pkg.vhd
