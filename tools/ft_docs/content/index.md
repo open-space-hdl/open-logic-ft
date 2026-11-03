@@ -34,6 +34,7 @@ release and where each change stands upstream.
 | Delays | [olo_ft_delay](doc/ft/olo_ft_delay.md), [olo_ft_delay_cfg](doc/ft/olo_ft_delay_cfg.md) | Fork only |
 | AXI masters | [olo_ft_axi_master_simple](doc/ft/olo_ft_axi_master_simple.md), [olo_ft_axi_master_full](doc/ft/olo_ft_axi_master_full.md) | Fork only |
 | EDAC monitoring | [olo_ft_ecc_monitor](doc/ft/olo_ft_ecc_monitor.md), [olo_ft_ecc_monitor_axi](doc/ft/olo_ft_ecc_monitor_axi.md) | Fork only |
+| Commanded reset | [olo_ft_reset_ctrl_axi](doc/ft/olo_ft_reset_ctrl_axi.md) | Fork only |
 | Stream chunking, packing and segmentation | [olo_base_chunker](doc/base/olo_base_chunker.md), [olo_base_stream_join](doc/base/olo_base_stream_join.md), [olo_base_stream_split](doc/base/olo_base_stream_split.md) | Fork only |
 | Reed-Solomon codec | [olo_base_pkg_gf](doc/base/olo_base_pkg_gf.md), [olo_base_rs_encode](doc/base/olo_base_rs_encode.md), [olo_base_rs_decode](doc/base/olo_base_rs_decode.md) | Fork only |
 | CAN controller | [olo_intf_can](doc/intf/olo_intf_can.md) | Fork only |
@@ -57,11 +58,11 @@ response code of a failed command.
 The fork replaces Open Logic in a project; the library name (`olo`), the compile order and the tool scripts are the
 same, see [How to](doc/HowTo.md). Projects include it as a git submodule and pin a tag. Tags are named
 `<upstream version>-ft.<n>` and mark a state of the branch `fault-tolerant` whose checks passed; the current one is
-`4.7.0-ft.11`.
+`4.7.0-ft.12`.
 
 ```shell
 git submodule add -b fault-tolerant https://github.com/open-space-hdl/open-logic-ft.git open-logic
-git -C open-logic checkout 4.7.0-ft.11
+git -C open-logic checkout 4.7.0-ft.12
 git add open-logic
 ```
 
@@ -77,7 +78,7 @@ Every push to `fault-tolerant` runs the workflow `FT-Backlog-Check`: GHDL simula
 full regression), VSG linting, markdownlint and the check that every ft entity is part of the synthesis inference
 test. The SEU testbenches of the synchronizers force upsets into the registers of single chains:
 with `SyncTmr_g = true` the voted output is not affected, with a single synchronizer the upset is visible. The tag
-`4.7.0-ft.11` passed the full regression of the library (11321 tests) with GHDL. From `4.7.0-ft.7` on, the testbenches
+`4.7.0-ft.12` passed the full regression of the library (11401 tests) with GHDL. From `4.7.0-ft.7` on, the testbenches
 of the entities changed since the previous tag also pass in QuestaSim, with and without code coverage.
 
 ## Technology readiness
@@ -88,7 +89,7 @@ of Open Logic. The [TRL page](https://openspacehdl.org/trl/) explains what the l
 
 | Next level | What is needed | State |
 | --- | --- | --- |
-| TRL 4 | The ft entities in operation in a hardware design (e.g. inside OpenWire or OpenFibre on an evaluation board); errors injected through the error injection inputs on hardware, scrubbers running; hardware test report | Open |
+| TRL 4 | The ft entities in operation inside a reference system of the family on an evaluation board; errors injected through the error injection inputs on hardware, scrubbers running; hardware test report | Open |
 | TRL 5 | Single-event effects test (beam test) on a radiation-tolerant FPGA that confirms the effectiveness of ECC, scrubbing and TMR and quantifies the error rates | Open |
 
 ## Used by
