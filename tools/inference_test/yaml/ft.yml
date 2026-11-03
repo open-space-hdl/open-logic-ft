@@ -226,3 +226,17 @@ entities:
           S_AxiLite_WData: 32
         out_reduce:
           S_AxiLite_RData: 32
+
+  # ============================================================
+  # olo_ft_reset_ctrl_axi
+  # ============================================================
+  - entity_name: "olo_ft_reset_ctrl_axi"
+    configurations:
+      - name: "pulse16-addr12"
+        generics: { RstPulseCycles_g: 16, AxiAddrWidth_g: 12 }
+        in_reduce:
+          S_AxiLite_ArAddr: 12
+          S_AxiLite_AwAddr: 12
+          S_AxiLite_WData: 32
+        out_reduce:
+          S_AxiLite_RData: 32

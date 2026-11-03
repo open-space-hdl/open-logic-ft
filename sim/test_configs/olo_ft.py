@@ -241,3 +241,13 @@ def add_configs(olo_tb):
     for Channels in [8, 33]:
         named_config(tb, {'Channels_g': Channels})
     named_config(tb, {'CounterWidth_g': 4})
+
+    ### olo_ft_reset_ctrl_axi ###
+    tb = olo_tb.test_bench('olo_ft_reset_ctrl_axi_tb')
+    # Pulse length: both ends of the range, two cycles, the default (restart inside the pulse) and a
+    # long pulse; address width: both ends of the range; a key other than the default
+    for Cycles in [1, 2, 16, 1000, 65535]:
+        named_config(tb, {'RstPulseCycles_g': Cycles})
+    for AddrWidth in [4, 30]:
+        named_config(tb, {'AxiAddrWidth_g': AddrWidth})
+    named_config(tb, {'AltKey_g': True})

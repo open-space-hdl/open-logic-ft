@@ -42,6 +42,7 @@ Note that components are split into categories.
     - [Timing Related Entities (ft)](#timing-related-entities-ft)
     - [AXI Interfaces (olo\_ft\_axi\_\<...\>)](#axi-interfaces-olo_ft_axi_)
     - [Monitoring (olo\_ft\_ecc\_monitor\<...\>)](#monitoring-olo_ft_ecc_monitor)
+    - [Reset Control (olo\_ft\_reset\_ctrl\<...\>)](#reset-control-olo_ft_reset_ctrl)
     - [Private Entities](#private-entities)
 
 ## base
@@ -385,6 +386,12 @@ entities.
 | ------------------------------------------------------------------ | ------------------------------------------------------------ |
 | [olo_ft_ecc_monitor](./ft/olo_ft_ecc_monitor.md)                   | EDAC monitor: per-channel saturating SEC/DED counters with sticky DED flags and a read-and-clear port |
 | [olo_ft_ecc_monitor_axi](./ft/olo_ft_ecc_monitor_axi.md)           | EDAC monitor with AXI4-Lite register interface and interrupt output |
+
+### Reset Control (olo_ft_reset_ctrl\<...\>)
+
+| Entity                                                             | Description                                                  |
+| ------------------------------------------------------------------ | ------------------------------------------------------------ |
+| [olo_ft_reset_ctrl_axi](./ft/olo_ft_reset_ctrl_axi.md)             | Commanded reset pulse with AXI4-Lite register interface; a 32-bit key protects the command against stray and corrupted writes |
 
 ### Private Entities
 
