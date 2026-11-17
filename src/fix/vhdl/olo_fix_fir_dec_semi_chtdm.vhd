@@ -502,6 +502,11 @@ begin
     AccuChain(0)   <= (others => '0');
 
     g_mac : for i in 0 to Multipliers_g - 1 generate
+        -- Global tap indices of this lane. Constants instead of inline products: QuestaSim 2024.3
+        -- with +cover evaluates "unsigned(Coef_Addr) >= i * TapsPerStage_c" to false for i = 0.
+        constant LaneFirstTap_c : natural := i * TapsPerStage_c;
+        constant LaneEndTap_c   : natural := (i + 1) * TapsPerStage_c;
+
         signal DataWrAddr : std_logic_vector(RamAddrBits_c - 1 downto 0);
         signal DataWr     : std_logic;
         signal DataDin    : InData_t;
@@ -590,10 +595,10 @@ begin
         -- Read address = local within-lane tap index (0 .. TapsPerStage-1)
         CoefRdAddr <= std_logic_vector(resize(unsigned(r.CoefRdAddr(i + 3)), CoefAddrBits_c));
         -- Config accesses are routed to the lane owning the addressed global tap index
-        CfgSel   <= '1' when (unsigned(Coef_Addr) >= i * TapsPerStage_c) and
-                             (unsigned(Coef_Addr) < (i + 1) * TapsPerStage_c) else
+        CfgSel   <= '1' when (unsigned(Coef_Addr) >= LaneFirstTap_c) and
+                             (unsigned(Coef_Addr) < LaneEndTap_c) else
                     '0';
-        CfgAddr  <= std_logic_vector(resize(unsigned(Coef_Addr) - i * TapsPerStage_c, CoefAddrBits_c));
+        CfgAddr  <= std_logic_vector(resize(unsigned(Coef_Addr) - LaneFirstTap_c, CoefAddrBits_c));
         CfgWrEna <= Coef_WrEna and CfgSel;
         CfgRdEna <= Coef_RdEna and CfgSel;
 
