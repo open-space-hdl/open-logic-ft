@@ -58,12 +58,20 @@ begin
                 check_equal(log2(5), 2, "log2(5) wrong");
                 check_equal(log2(2), 1, "log2(2) wrong");
                 check_equal(log2(1), 0, "log2(1) wrong");
+                check_equal(log2(integer'high), 30, "log2(integer'high) wrong");
 
             elsif run("log2ceil-int") then
                 check_equal(log2ceil(8), 3, "log2ceil(8) wrong");
                 check_equal(log2ceil(5), 3, "log2ceil(5) wrong");
+                check_equal(log2ceil(4), 2, "log2ceil(4) wrong");
+                check_equal(log2ceil(3), 2, "log2ceil(3) wrong");
                 check_equal(log2ceil(2), 1, "log2ceil(2) wrong");
                 check_equal(log2ceil(1), 0, "log2ceil(1) wrong");
+                -- arguments of 2**30 and above, where arg * 2 does not fit into an integer
+                check_equal(log2ceil(2**30 - 1), 30, "log2ceil(2**30 - 1) wrong");
+                check_equal(log2ceil(2**30), 30, "log2ceil(2**30) wrong");
+                check_equal(log2ceil(2**30 + 1), 31, "log2ceil(2**30 + 1) wrong");
+                check_equal(log2ceil(integer'high), 31, "log2ceil(integer'high) wrong");
                 -- special case, returns zero to avoid errors when calculating bits for zero-lenth arrays
                 check_equal(log2ceil(0), 0, "log2ceil(1) wrong");
 

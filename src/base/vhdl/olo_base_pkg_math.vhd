@@ -202,10 +202,11 @@ package body olo_base_pkg_math is
     -- *** Log2Ceil integer ***
     function log2ceil (arg : in natural) return natural is
     begin
-        if arg = 0 then
+        if arg <= 1 then
             return 0;
         end if;
-        return log2(arg * 2 - 1);
+        -- Equal to log2(arg * 2 - 1), without the overflow of arg * 2 for arg >= 2**30
+        return log2(arg - 1) + 1;
     end function;
 
     -- *** Log2Ceil real ***
